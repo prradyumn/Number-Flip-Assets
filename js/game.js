@@ -1,14 +1,16 @@
 /* Number Flip V2: game flow, rendering and motion (GSAP). Content lives in js/content.js.
-   The game is a fixed script (the V2 LXD sheet): Hook → Setup → How to Play 1-4 → Part 2 (Commutative) → FLIP → Part 3 (Associative) → Complete. */
+   The game is a fixed script (the V2 LXD sheet): Hook → Setup → How to Play 1-4 → Part 2 Commutative → FLIP → Part 3 Associative → FLIP →
+   Part 4 Distributive → FLIP → Part 5 Identity → Identity Complete → Part 6 FINAL FLIP → Victory. */
 (() => {
 'use strict';
-const { START_CARDS, PARTS, HOOK, SETUP, HOW, WRONG1, STUCK, PART2, PART3, EXPLAIN, ACTIONS, FILLER, util: { shuffle, ev } } = window.NF_CONTENT;
+const { START_CARDS, PARTS, HOOK, SETUP, HOW, WRONG1, STUCK, PLAY, EXPLAIN, ACTIONS, FILLER, util: { shuffle, ev } } = window.NF_CONTENT;
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const A = p => `assets/${p}.webp`;
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
-const MATCHES = [PART2, PART3].map(s => s.filter(x => x.t === 'match').length);
+const MATCHES = PLAY.map(s => s.filter(x => x.t === 'match').length);
+const NP = PLAY.length;
 
 /* ---------- stage fit ---------- */
 const stage = $('#stage');
@@ -22,8 +24,8 @@ addEventListener('resize', fit); fit();
 const PRELOAD = [
   ...['idle', 'talking', 'cheering', 'pointing', 'thinking', 'oops'].map(p => 'characters/ch-flippy-' + p),
   ...['idle', 'thinking', 'playing', 'laughing', 'dizzy', 'sad'].map(p => 'characters/ch-robo-' + p),
-  ...PARTS.map(p => 'cards/cd-front-' + p.key), 'cards/cd-front-distributive', 'cards/cd-front-identity', 'cards/cd-back', 'cards/cd-flip', 'cards/cd-skip', 'cards/cd-reverse', 'cards/cd-swap-hands', 'cards/cd-mystery',
-  'cards/cd-mystery-reveal-associative', 'cards/cd-mystery-reveal-distributive',
+  ...PARTS.map(p => 'cards/' + p.card), ...PARTS.map(p => p.medal), 'ui/ui-last-card-button', ...['commutative', 'associative', 'distributive', 'identity'].map(k => 'ui/ui-icon-' + k), 'cards/cd-back', 'cards/cd-flip', 'cards/cd-skip', 'cards/cd-reverse', 'cards/cd-swap-hands', 'cards/cd-mystery',
+  'cards/cd-mystery-reveal-associative', 'cards/cd-mystery-reveal-distributive', 'cards/cd-mystery-reveal-commutative',
   'fx/fx-star-burst', 'fx/fx-hint-glow', 'fx/fx-card-glow', 'fx/fx-skip-smoke', 'fx/fx-reverse-arrows', 'fx/fx-mystery-swirl', 'fx/fx-card-trail', 'fx/fx-win-rays',
   ...['robo', 'flippy'].flatMap(w => ['grip-back', 'grip-front-fingers', 'open', 'release', 'ext'].map(k => `hands/arm-${w}-${k}`).concat(`characters/body-${w}-throw`)), 'bg/bg-victory', 'ui/ui-icon-sound-off', 'ui/ui-stamp-badge'];
 PRELOAD.forEach(p => { const i = new Image(); i.src = A(p); });
@@ -72,7 +74,7 @@ function speak(text) {
   return new Promise(res => {
     try {
       speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text.replace(/×/g, ' times ').replace(/→/g, ', ').replace(/•/g, ', '));
+      const u = new SpeechSynthesisUtterance(text.replace(/_+/g, ' blank ').replace(/×/g, ' times ').replace(/→/g, ', ').replace(/•/g, ', '));
       const vs = speechSynthesis.getVoices(); const v = vs.find(v => /en-IN/i.test(v.lang)) || vs.find(v => /^en/i.test(v.lang)); if (v) u.voice = v;
       u.rate = 1.02; u.pitch = 1.15; u.onend = u.onerror = () => res(); speechSynthesis.speak(u); setTimeout(res, 15000);
     } catch (e) { res(); }
@@ -125,9 +127,10 @@ const L = {
   big: { x: 820, y: 250, w: 280, h: 398 }
 };
 const rectOf = el => { let x = 0, y = 0, e = el; while (e && e !== stage) { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; } return { x, y, w: el.offsetWidth, h: el.offsetHeight }; };
-const frontImg = p => 'cd-front-' + PARTS[Math.min(p, 1)].key;
-function fs(t, w) { const n = t.replace(/<[^>]+>/g, '').length; const k = n <= 3 ? .34 : n <= 6 ? .25 : n <= 9 ? .185 : n <= 13 ? .15 : .13; return Math.round(w * k); }
-function cardInner(img, text, w, cls = '') { return `<img src="${A('cards/' + img)}" alt="" draggable="false">${text != null ? `<span class="face ${cls}" style="font-size:${fs(text, w)}px">${text}</span>` : ''}`; }
+const frontImg = p => PARTS[p].card;
+const faceText = t => t.length <= 12 ? t : t.includes(') + (') ? t.replace(') + (', ') +<br>(') : t.includes(' = ') ? t.replace(/ = (?=[^=]*$)/, '<br>= ') : t;
+function fs(t, w) { const n = Math.max(...t.split('<br>').map(l => l.replace(/<[^>]+>/g, '').length)); const k = n <= 3 ? .34 : n <= 6 ? .25 : n <= 9 ? .185 : n <= 13 ? .15 : .13; return Math.round(w * k); }
+function cardInner(img, text, w, cls = '') { if (text != null) text = faceText(String(text)); return `<img src="${A('cards/' + img)}" alt="" draggable="false">${text != null ? `<span class="face ${cls}" style="font-size:${fs(text, w)}px">${text}</span>` : ''}`; }
 const actInner = (type, w) => cardInner(ACTIONS[type].img, ACTIONS[type].face ?? null, w, 'actface');
 function place(el, r, rot = 0) { el.style.left = r.x + 'px'; el.style.top = r.y + 'px'; el.style.width = r.w + 'px'; el.style.height = r.h + 'px'; gsap.set(el, { rotation: rot }); }
 
@@ -263,15 +266,16 @@ const pulse = (el, n = 3, s = 1.08) => el && gsap.fromTo(el, { scale: 1 }, { sca
 const bounce = el => el && gsap.fromTo(el, { y: 0 }, { keyframes: { y: [-34, 0, -16, 0] }, duration: .8, ease: 'power1.out', overwrite: 'auto' });
 
 /* ---------- equations: tokens that move ("numbers swap", "brackets jump") ---------- */
-const TOK = s => s.match(/\(|\)|\d+|[+×=]/g) || [];
-const spans = s => TOK(s).map(t => `<span class="t ${/\d/.test(t) ? 'n' : /[()]/.test(t) ? 'b' : 'o'}">${t}</span>`).join('');
+const TOK = s => s.match(/\(|\)|\d+|_+|[+×=?→]/g) || [];
+const spans = s => TOK(s).map(t => `<span class="t ${/\d/.test(t) ? 'n' : /[()]/.test(t) ? 'b' : /[_?]/.test(t) ? 'q' : 'o'}">${t}</span>`).join('');
 function relPos(el, box) { let x = 0, y = 0, e = el; while (e && e !== box) { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; } return { x, y }; }
 /* move copies of tokens A into the places of tokens B (same number goes to the same number, brackets jump to their new place) */
-function morph(box, Aels, Bels, { dur = .85, keepA = true, glow = false } = {}) {
+function morph(box, Aels, Bels, { dur = .85, keepA = true, glow = false, dup = false } = {}) {
   const ta = Aels.map(e => e.textContent), used = new Set(), tl = gsap.timeline();
   Bels.forEach((be, j) => {
     be.style.visibility = 'hidden';
-    const i = ta.findIndex((t, k) => !used.has(k) && t === be.textContent), bp = relPos(be, box);
+    let i = ta.findIndex((t, k) => !used.has(k) && t === be.textContent); const bp = relPos(be, box);
+    if (i < 0 && dup) i = ta.findIndex(t => t === be.textContent);
     if (i < 0) { tl.fromTo(be, { autoAlpha: 0 }, { autoAlpha: 1, duration: D(.3) }, D(dur) * .7); return; }
     used.add(i);
     const ae = Aels[i], ap = relPos(ae, box), c = ae.cloneNode(true), isB = /[()]/.test(c.textContent), isN = /\d/.test(c.textContent);
@@ -284,36 +288,52 @@ function morph(box, Aels, Bels, { dur = .85, keepA = true, glow = false } = {}) 
   });
   return tl;
 }
-/* the equation panel beside the centre pile: A, then "= B" built from A's own numbers, then the value on both sides */
-async function eqShow(a, b, val, { glow = false } = {}) {
-  const g = GID, box = $('#equation');
+/* the equation panel beside the centre pile. q = { a, b, val, fill, dup }:
+   swap / group / split: A, then "= B" built from A's own numbers, then the value line;
+   fill (identity): B is drawn over A and the card's number drops into the blank. */
+async function eqShow(q, { glow = false } = {}) {
+  const g = GID, box = $('#equation'), fill = !!q.fill;
   gsap.killTweensOf(box);
-  box.innerHTML = `<div class="eq-row ra">${spans(a)}</div><div class="eq-row rb"><span class="t o eqs">=</span>${spans(b)}</div><div class="eq-val">${val} = ${val}</div>`;
+  box.innerHTML = `<div class="eq-stack${fill ? ' fill' : ''}"><div class="eq-row ra">${spans(q.a)}</div><div class="eq-row rb">${fill ? '' : '<span class="t o eqs">=</span>'}${spans(q.b)}</div></div>${q.val ? `<div class="eq-val">${q.val}</div>` : ''}`;
   box.classList.toggle('hint', glow);
   const Ael = [...box.querySelectorAll('.ra .t')], Bel = [...box.querySelectorAll('.rb .t:not(.eqs)')], eqs = box.querySelector('.eqs'), v = box.querySelector('.eq-val');
-  gsap.set([eqs, v], { autoAlpha: 0 }); Bel.forEach(e => e.style.visibility = 'hidden');
+  if (eqs || v) gsap.set([eqs, v].filter(Boolean), { autoAlpha: 0 }); Bel.forEach(e => e.style.visibility = 'hidden');
   await gsap.fromTo(box, { autoAlpha: 0, scale: .7 }, { autoAlpha: 1, scale: 1, duration: D(.35), ease: 'back.out(2)' });
   if (glow) Ael.filter(e => e.classList.contains('n')).forEach(e => e.classList.add('glow'));
-  gsap.to(eqs, { autoAlpha: 1, duration: .2 });
-  await morph(box, Ael, Bel, { glow });
-  await gsap.to(v, { autoAlpha: 1, duration: D(.3) });
+  if (eqs) gsap.to(eqs, { autoAlpha: 1, duration: .2 });
+  if (fill) gsap.to(Ael.filter(e => !/\d/.test(e.textContent)), { autoAlpha: 0, duration: D(.3), delay: D(.3) });
+  await morph(box, Ael, Bel, { glow, dup: q.dup, keepA: !fill });
+  if (fill) { const res = TOK(q.b).pop(); Bel.filter(e => e.textContent === res).forEach(e => e.classList.add('glow')); }
+  if (v) await gsap.to(v, { autoAlpha: 1, duration: D(.3) });
   guard(g);
+}
+/* the equation for a match step and the chosen card */
+function eqOf(st, pick) {
+  if (st.fill || st.eqB) return { a: st.centre, b: st.eqB ? st.eqB[pick] : st.fill, fill: true };
+  const v = ev(st.centre); return { a: st.centre, b: pick, val: st.val ?? `${v} = ${v}`, dup: st.dup };
+}
+/* what the completion screen lists for a solved match */
+function pairOf(st, pick, v) {
+  const q = eqOf(st, pick);
+  if (!q.fill) return { a: q.a, b: q.b, v };
+  const k = q.b.lastIndexOf(' = '), a = q.b.slice(0, k);
+  return { a, b: q.b.slice(k + 3), zero: / × 0$/.test(a) };
 }
 function eqClear() { gsap.to('#equation', { autoAlpha: 0, duration: .2, overwrite: true }); }
 
 /* ---------- state ---------- */
 let S = null;
 function fresh() {
-  S = { part: 0, done: [0, 0], hand: START_CARDS, comp: START_CARDS, centre: null, played: null, view: 'wait', opts: [], drop: [], glow: -1, special: null,
-    turn: 'learner', over: false, pairs: [[], []], lock: 0,
+  S = { part: 0, done: PARTS.map(() => 0), hand: START_CARDS, comp: START_CARDS, centre: null, played: null, view: 'wait', opts: [], drop: [], glow: [], special: null,
+    turn: 'learner', over: false, pairs: PARTS.map(() => []), lock: 0,
     stats: { correct: 0, wrong: 0, drawn: 0, start: Date.now() } };
 }
 
 /* ---------- rendering ---------- */
 function renderProgress() {
-  const el = $('#progress'), i = Math.min(S.part, 1), p = PARTS[i];
-  el.innerHTML = `<img class="ic" src="${A('rewards/medal-' + p.key + '-unlocked')}" alt=""><span class="pn">${p.name}</span>` +
-    `<span class="dots">${Array.from({ length: MATCHES[i] }, (_, d) => `<i class="${d < S.done[i] ? 'on' : ''}"></i>`).join('')}</span><span class="pp">${i + 1}/2</span>`;
+  const el = $('#progress'), i = S.part, p = PARTS[i];
+  el.innerHTML = `<img class="ic" src="${A(p.medal)}" alt=""><span class="pn">${p.name}</span>` +
+    `<span class="dots">${Array.from({ length: MATCHES[i] }, (_, d) => `<i class="${d < S.done[i] ? 'on' : ''}"></i>`).join('')}</span><span class="pp">${i + 1}/${NP}</span>`;
 }
 function renderFan() {
   const f = $('#roboFan'), n = Math.min(S.comp, 6); f.innerHTML = '';
@@ -354,7 +374,7 @@ function renderHand({ deal = false } = {}) {
     if (faces) {
       b.dataset.opt = i; b.setAttribute('aria-label', 'Play ' + faces[i]); b.disabled = !live;
       b.innerHTML = `<span class="lift">${cardInner(frontImg(S.part), faces[i], W)}</span>`;
-      if (i === S.glow) b.dataset.glow = '1';
+      if (S.glow.includes(i)) b.dataset.glow = '1';
     } else { b.disabled = true; b.innerHTML = `<span class="lift">${cardInner('cd-back', null, W)}</span>`; }
     place(b, r, rot); h.appendChild(b); cards.push(b);
   }
@@ -375,7 +395,7 @@ function renderHand({ deal = false } = {}) {
   gsap.delayedCall(deal ? .55 : 0, () => { if (g === GID) $$('#hand [data-glow]').forEach(b => glowKill.push(glowAt(rectOf(b)))); });
 }
 function renderAll() { renderProgress(); renderFan(); renderCentre(); renderHand(); updateTint(false); }
-function updateTint(animate = true) { gsap.to('#tint', { background: `radial-gradient(closest-side, ${PARTS[Math.min(S.part, 1)].color}, transparent)`, duration: animate ? D(.6) : 0 }); }
+function updateTint(animate = true) { gsap.to('#tint', { background: `radial-gradient(closest-side, ${PARTS[S.part].color}, transparent)`, duration: animate ? D(.6) : 0 }); }
 
 /* on-screen text (the sheet's OST column) */
 function ost(t) {
@@ -413,6 +433,7 @@ $('#hand').addEventListener('click', e => {
 $('#pile').addEventListener('click', () => tap({ kind: 'pile' }));
 $('#btnGo').addEventListener('click', () => { sfx('pop'); tap({ kind: 'go' }); });
 $('#scrExplain .go').addEventListener('click', () => { sfx('pop'); tap({ kind: 'go' }); });
+$('#btnFinal').addEventListener('click', () => tap({ kind: 'final' }));
 /* inactivity: the sheet's Inactivity VO + animation, after 8 s and then every 12 s */
 let idleT = null;
 function idle(vo, anim) {
@@ -437,7 +458,7 @@ const HOOK_CARDS = [['cd-front-commutative', '7'], ['cd-skip'], ['cd-front-assoc
 async function hook() {
   resetMotion(); fresh(); renderAll(); ost(''); hideGo(); $('#setupOpts').hidden = true; $('#turnPtr').style.opacity = 0;
   const g = GID, t = $('#scrTitle'); t.hidden = false; gsap.set(t, { autoAlpha: 1 });
-  ['#scrTeach', '#scrExplain', '#scrPause', '#scrWin', '#qa'].forEach(s => $(s).hidden = true);
+  ['#scrTeach', '#scrExplain', '#scrPause', '#scrWin', '#scrStar', '#qa'].forEach(s => $(s).hidden = true);
   const box = $('#hookCards'); box.innerHTML = HOOK_CARDS.map(([img, txt]) => `<div class="hc">${cardInner(img, txt ?? null, 150)}</div>`).join('');
   const cards = [...box.children], n = cards.length;
   $('#scrTitle .subtitle').textContent = HOOK.vo;
@@ -500,13 +521,13 @@ async function howTo() {
     const H = HOW.match; await setTurn('learner'); ost(H.ost);
     S.centre = { text: H.centre, p: 0 }; S.played = null; renderCentre(true);
     S.opts = shuffle([{ text: H.right, correct: true }, ...H.wrongs.map(t => ({ text: t, correct: false }))]); const ci = S.opts.findIndex(o => o.correct);
-    S.view = 'match'; S.glow = ci; renderHand({ deal: true }); renderCentre();
+    S.view = 'match'; S.glow = [ci]; renderHand({ deal: true }); renderCentre();
     say(H.vo); idle(H.idle, () => pulse($(`#hand [data-opt="${ci}"]`)));
     let e; for (;;) { e = await waitFor('opt'); if (S.opts[e.i].correct) break; gsap.fromTo(e.el, { x: 0 }, { keyframes: { x: [-12, 12, -8, 0] }, duration: .35 }); pulse($(`#hand [data-opt="${ci}"]`), 2); }
     idleOff(); clearGlow(); sfx('good');
     const r = rectOf(e.el); e.el.style.visibility = 'hidden';
     await fly(r, L.played, cardInner(frontImg(0), H.right, r.w), { rot: 6, trail: true });
-    S.hand--; S.played = { text: H.right, p: 0 }; S.view = 'wait'; S.glow = -1; renderCentre(); renderHand();
+    S.hand--; S.played = { text: H.right, p: 0 }; S.view = 'wait'; S.glow = []; renderCentre(); renderHand();
     badge('correct', L.played.x + L.played.w - 20, L.played.y + 30, 130); sparkles(L.played.x + 105, L.played.y + 140, 6, 110);
     pose('flippy', 'cheer', 1600); await talk(H.ok, true);
   }
@@ -608,20 +629,20 @@ async function reshuffle() {
 }
 
 /* ======================================================================
-   PARTS 2 and 3: the scripted game
+   PARTS 2 to 6: the scripted game
    ====================================================================== */
 async function playGame(from = 0) {
-  const parts = [PART2, PART3];
-  for (let p = from; p < 2; p++) { S.part = p; renderProgress(); updateTint(); await runSteps(parts[p]); }
+  for (let p = from; p < NP; p++) { S.part = p; renderProgress(); updateTint(); await runSteps(PLAY[p]); }
 }
 async function runSteps(steps) { for (let i = 0; i < steps.length; i++) await STEP[steps[i].t](steps[i], steps, i); }
 
+const rt = t => Math.min(8500, 900 + t.length * 52);
 const STEP = {
   /* Teaching: the game rule (learner observes) */
   async teach(st) {
     const g = GID, P = PARTS[st.part], scr = $('#scrTeach'), pan = scr.querySelector('.panel');
     S.view = 'wait'; renderHand(); ost(''); eqClear();
-    pan.style.setProperty('--pc', P.color); pan.querySelector('.medal').src = A('rewards/medal-' + P.key + '-unlocked');
+    pan.style.setProperty('--pc', P.color); pan.querySelector('.medal').src = A(P.medal); pan.querySelector('.tag').textContent = P.tag || 'Game rule';
     pan.querySelector('h2').textContent = P.title; pan.querySelector('.how').textContent = P.teach; pan.querySelector('.rule').innerHTML = P.rule.join('<br>');
     scr.hidden = false; sfx('magic');
     await gsap.timeline().fromTo(scr, { autoAlpha: 0 }, { autoAlpha: 1, duration: D(.25) }).fromTo(pan, { y: 120, scale: .85 }, { y: 0, scale: 1, duration: D(.5), ease: 'back.out(1.6)' }, '<')
@@ -631,53 +652,39 @@ const STEP = {
     await gsap.to(scr, { autoAlpha: 0, duration: D(.3) }); scr.hidden = true; guard(g);
   },
 
-  /* Part 3 row 20: three number cards, brackets move, the answer stays 10 */
-  async explain() {
-    const g = GID, E = EXPLAIN, scr = $('#scrExplain'), pan = scr.querySelector('.panel'), [big, small] = pan.querySelectorAll('.xrow'), go = pan.querySelector('.go');
-    S.view = 'wait'; renderHand(); ost('');
-    const fill = (row, a, b, v) => { row.querySelector('.xa').innerHTML = `<span class="lay la">${spans(a)}</span><span class="lay lb">${spans(b)}</span>`; row.querySelector('.xval').textContent = '= ' + v; };
-    fill(big, E.a, E.b, E.val); fill(small, E.ma, E.mb, E.mval); go.hidden = true; pan.querySelector('.xcap').textContent = '';
-    gsap.set([big.querySelector('.xval'), small], { autoAlpha: 0 }); pan.querySelector('.pname').classList.remove('lit');
+  /* property explanation panels (Part 3 row 20, Part 4 row 34, Part 5 row 55), then GOT IT */
+  async explain(st) {
+    const g = GID, E = EXPLAIN[st.key], P = PARTS[S.part], scr = $('#scrExplain'), pan = scr.querySelector('.panel'), go = pan.querySelector('.go'), xd = pan.querySelector('.xd');
+    S.view = 'wait'; renderHand(); eqClear(); ost(E.ost || '');
+    pan.style.setProperty('--pc', P.color); pan.querySelector('.medal').src = A(P.medal);
+    const name = pan.querySelector('.pname'); name.textContent = P.title; name.classList.remove('lit');
+    const assoc = st.key === 'associative'; pan.querySelectorAll('.xrow').forEach(r => r.hidden = !assoc); xd.hidden = assoc; xd.innerHTML = '';
+    go.hidden = true; pan.querySelector('.xcap').textContent = '';
+    if (assoc) prepAssoc(E, pan);
     scr.hidden = false;
     await gsap.timeline().fromTo(scr, { autoAlpha: 0 }, { autoAlpha: 1, duration: D(.25) }).fromTo(pan, { y: 120, scale: .85 }, { y: 0, scale: 1, duration: D(.5), ease: 'back.out(1.6)' }, '<'); guard(g);
-    const parts = row => [[...row.querySelectorAll('.la .t')], [...row.querySelectorAll('.lb .t')]];
     /* the panel covers Flippy's bubble, so the VO line is captioned inside the panel too */
     const cap = pan.querySelector('.xcap'), line = t => { cap.textContent = t; gsap.fromTo(cap, { autoAlpha: 0, y: 8 }, { autoAlpha: 1, y: 0, duration: D(.3) }); return say(t); };
-    const [bA, bB] = parts(big); bB.forEach(e => e.style.visibility = 'hidden');
-    /* 1: (2 + 3) + 5 = 10 */
-    line(E.lines[0]);
-    await gsap.timeline().from(bA.filter(e => e.classList.contains('n')), { y: -160, autoAlpha: 0, rotation: -20, stagger: .15, duration: D(.4), ease: 'back.out(1.8)', onStart: () => sfx('deal') })
-      .from(bA.filter(e => !e.classList.contains('n')), { scale: 0, stagger: .08, duration: D(.3), ease: 'back.out(3)' }); guard(g);
-    await wait(1400, true); await gsap.to(big.querySelector('.xval'), { autoAlpha: 1, duration: D(.3) }); sfx('good'); await wait(2000, true);
-    /* 2: brackets shift to 3 and 5: still 10 */
-    line(E.lines[1]); gsap.to(big.querySelector('.xval'), { autoAlpha: .25, duration: .2 });
-    await morph(big.querySelector('.xa'), bA, bB, { keepA: false, glow: true, dur: 1 }); guard(g);
-    sfx('good'); await gsap.fromTo(big.querySelector('.xval'), { autoAlpha: .25, scale: 1.4 }, { autoAlpha: 1, scale: 1, duration: D(.4), ease: 'back.out(3)' }); await wait(2600, true);
-    /* 3: the property name glows */
-    line(E.lines[2]); pan.querySelector('.pname').classList.add('lit'); sparkles(960, 330, 10, 260); sfx('magic'); await wait(4200, true);
-    /* 4: it works for multiplication too */
-    line(E.lines[3]);
-    const [sA, sB] = parts(small); sB.forEach(e => e.style.visibility = 'hidden'); gsap.set(small.querySelector('.xval'), { autoAlpha: 0 });
-    await gsap.to(small, { autoAlpha: 1, duration: D(.3) }); await wait(600);
-    await morph(small.querySelector('.xa'), sA, sB, { keepA: false, glow: true, dur: .9 }); await gsap.to(small.querySelector('.xval'), { autoAlpha: 1, duration: D(.3) }); guard(g);
-    await wait(1500, true);
+    const lit = async t => { line(t); name.classList.add('lit'); sparkles(960, 330, 10, 260); sfx('magic'); await wait(rt(t), true); };
+    await EXPLAINERS[st.key](E, pan, line, lit); guard(g);
     go.hidden = false; gsap.fromTo(go, { scale: 0 }, { scale: 1, duration: D(.4), ease: 'back.out(2.5)' }); go.focus();
     cap.textContent = '';
     idle(E.idle, () => { line(E.idle); pulse(go, 2, 1.12); });
     await waitFor('go'); idleOff(); go.hidden = true;
     line(E.ok); pose('flippy', 'cheer', 1600); sparkles(960, 330, 14, 300); sfx('magic'); await wait(1600, true);
-    await gsap.to(scr, { autoAlpha: 0, duration: D(.3) }); scr.hidden = true; guard(g);
+    await gsap.to(scr, { autoAlpha: 0, duration: D(.3) }); scr.hidden = true; ost(''); guard(g);
   },
 
-  /* a matching challenge: three cards, one is the property match */
+  /* a matching challenge: three cards (two correct in the Identity tutorial; one card at the very end) */
   async match(st) {
-    const g = GID, P = S.part, v = ev(st.centre);
+    const g = GID, P = S.part, rights = st.rights || [st.right], v = st.v ?? ev(st.centre);
     await setTurn('learner'); eqClear(); dimHand(false);
     if (!S.centre || S.centre.text !== st.centre) { S.centre = { text: st.centre, p: P }; S.played = null; renderCentre(true); await wait(350); }
-    S.opts = shuffle([{ text: st.right, correct: true }, ...st.wrongs.map(t => ({ text: t, correct: false }))]); const ci = S.opts.findIndex(o => o.correct);
-    S.view = 'match'; S.glow = st.guided ? ci : -1; renderHand({ deal: true });
+    S.opts = shuffle([...rights.map(t => ({ text: t, correct: true })), ...st.wrongs.map(t => ({ text: t, correct: false }))]);
+    const ci = S.opts.map((o, i) => o.correct ? i : -1).filter(i => i >= 0);
+    S.view = 'match'; S.glow = st.guided ? ci : []; renderHand({ deal: true });
     ost(st.ost); say(st.vo);
-    const pulseRight = () => pulse($(`#hand [data-opt="${ci}"]`), 2, 1.07);
+    const pulseRight = () => { ci.forEach(i => pulse($(`#hand [data-opt="${i}"]`), 2, 1.07)); if (st.last) pulse($('#centreCard'), 2, 1.05); };
     idle(st.idle, pulseRight);
     let wrong = 0, stuck = false, e;
     for (;;) {
@@ -690,7 +697,7 @@ const STEP = {
       gsap.fromTo(e.el, { x: 0 }, { keyframes: { x: [-16, 16, -12, 10, -6, 0] }, duration: D(.45), ease: 'none' });
       if (stuck) { say(st.w3, true); pulseRight(); continue; }
       if (wrong === 1) say(WRONG1, true);
-      else if (wrong === 2) { say(st.w2, true); eqShow(st.centre, st.right, v, { glow: true }).catch(() => { }); }
+      else if (wrong === 2) { say(st.w2, true); eqShow(eqOf(st, rights[0]), { glow: true }).catch(() => { }); }
       else {
         /* third miss: draw one card from the glowing pile, then the correct card glows for a guided retry */
         stuck = true; idleOff(); eqClear(); await drawStuck(); guard(g);
@@ -699,17 +706,18 @@ const STEP = {
       }
     }
     idleOff(); clearGlow();
-    /* correct: the card moves to the centre pile, the numbers swap / the brackets move, both sides reveal the answer */
+    /* correct: the card moves to the centre pile, the numbers swap / brackets move / parts split / the blank fills, both sides reveal the answer */
+    const pick = S.opts[e.i].text;
     sfx('good'); const r = rectOf(e.el); e.el.style.visibility = 'hidden';
-    await fly(r, L.played, cardInner(frontImg(P), st.right, r.w), { rot: 6, trail: true });
-    S.hand = Math.max(0, S.hand - 1); S.done[P]++; S.stats.correct++;
-    S.played = { text: st.right, p: P }; S.view = 'wait'; S.opts = []; S.glow = -1; S.pairs[P].push({ a: st.centre, b: st.right, v });
+    await fly(r, L.played, cardInner(frontImg(P), pick, r.w), { rot: 6, trail: true });
+    S.hand = st.last ? 0 : Math.max(1, S.hand - 1); S.done[P]++; S.stats.correct++;
+    S.played = { text: pick, p: P }; S.view = 'wait'; S.opts = []; S.glow = []; S.pairs[P].push(pairOf(st, pick, v));
     renderCentre(); renderHand(); renderProgress();
     gsap.fromTo('#playedCard', { scale: 1.12 }, { scale: 1, duration: D(.3), ease: 'back.out(3)' });
     badge('correct', L.played.x + L.played.w - 20, L.played.y + 30, 130); sparkles(L.played.x + 105, L.played.y + 150, 8, 130);
     if (st.confetti) confetti(24, L.played.x + 105, L.played.y + 100);
     pose('flippy', 'cheer', 1800); say(st.ok, true);
-    await eqShow(st.centre, st.right, v); valueBadges(v);
+    await eqShow(eqOf(st, pick)); if (st.badge !== false) valueBadges(v);
     await wait(1900, true);
   },
 
@@ -725,13 +733,22 @@ const STEP = {
     await talk(st.ok); guard(g);
   },
 
-  /* the computer plays Reverse or Skip: the learner's turn is missed */
+  /* the computer plays Reverse or Skip (the learner's turn is missed) or a Mystery card */
   async cpuAct(st) {
     const g = GID; S.view = 'wait'; renderHand(); await setTurn('computer'); eqClear();
     ost(st.ost); pose('robo', 'play', 1400);
     await handThrow('robo', actInner(st.act, 150), L.played);
     S.comp = Math.max(0, S.comp - 1); S.played = { act: st.act }; renderCentre(); renderFan();
     pose('robo', 'laugh', 2600); say(st.vo);
+    if (st.act === 'mystery') {
+      /* Part 4 row 41: the Mystery card flips; it shows DROP 1 and the computer drops one extra card */
+      await wait(600); await revealCard(st.img, st.reveal, L.played); guard(g);
+      sparkles(L.played.x + 105, L.played.y + 150, 10, 160); sfx('good');
+      const fan = rectOf($('#roboFan'));
+      await fly({ x: fan.x + 70, y: fan.y + 10, w: 80, h: 114 }, L.pile, cardInner('cd-back', null, 80), { dur: .55, rot: -20 });
+      S.comp = Math.max(0, S.comp - 1); renderFan(); pulse($('#cntCpu'), 1, 1.12); await wait(1200, true);
+      return;
+    }
     const blue = '#5AB0FF', red = '#FF5A6E';
     if (st.act === 'reverse') { sfx('whoosh'); fx('fx-reverse-arrows', L.played.x + 105, L.played.y + 150, 460, { from: .6, to: 1.1, rot: -360, dur: .9, ease: 'power2.inOut' }); sheet('screen-edge-good', 960, 540, 1920); await stamp('REVERSE!', blue, .5); }
     else { fx('fx-skip-smoke', 960, 920, 620, { from: .4, to: 1.4, rot: 10, dur: 1.2 }); sheet('screen-edge-bad', 960, 540, 1920); await stamp('SKIP!', red, .5); }
@@ -745,7 +762,9 @@ const STEP = {
 
   /* a special card appears in the learner's hand and the learner plays it */
   async give(st) {
-    const g = GID; await setTurn('learner'); eqClear(); S.view = 'special';
+    const g = GID; await setTurn('learner'); eqClear(); dimHand(false);
+    if (st.before) { [S.hand, S.comp] = st.before; S.view = 'wait'; renderHand(); renderFan(); }
+    S.view = 'special';
     ost(st.ost); pose('flippy', 'point', 2400); say(st.vo, true);
     sfx('deal'); await handThrow('flippy', actInner(st.act, 150), L.act);
     S.special = st.act; renderHand();
@@ -761,19 +780,36 @@ const STEP = {
       sheet('impact-ring', cx, cy, 460); fx('fx-skip-smoke', 1450, 372, 460, { from: .4, to: 1.4, rot: 10, dur: 1.2 }); sparkles(cx, cy, 8, 140);
       await setTurn('computer'); dimFan(true); miniStamp('SKIP', '#FF5A6E', 1450, 372); pose('robo', 'dizzy', 2400);
       say(st.ok, true); pose('flippy', 'cheer', 1800); await wait(1800, true);
-      await setTurn('learner'); dimFan(false); await wait(900, true);
+      await setTurn('learner'); dimFan(false); await stamp('PLAY AGAIN!', '#FF5A6E', .5); await wait(600, true);
     } else if (st.act === 'reverse') {
       /* arrow spins back towards the learner; the computer's turn is skipped */
       sfx('whoosh'); fx('fx-reverse-arrows', cx, cy, 460, { from: .6, to: 1.1, rot: 360, dur: .9, ease: 'power2.inOut' }); sparkles(cx, cy, 10, 160);
       await setTurn('computer'); await gsap.to('#turnPtr', { rotation: '+=360', duration: D(.5) }); gsap.set('#turnPtr', { rotation: -90 }); await setTurn('learner');
       say(st.ok, true); pose('flippy', 'cheer', 1800); await stamp('PLAY AGAIN!', '#5AB0FF', .6); await wait(1200, true);
+    } else if (st.act === 'swap') {
+      /* Part 4 row 40: the remaining hands exchange places */
+      sheet('impact-ring', cx, cy, 460); sparkles(cx, cy, 10, 160); sfx('whoosh');
+      const fan = rectOf($('#roboFan')), mine = S.hand, theirs = S.comp, f = [], hx = L.hand.cx - 160;
+      for (let k = 0; k < mine; k++) f.push(fly({ x: hx + k * 60, y: L.hand.y, w: 136, h: 194 }, { x: fan.x + 70, y: fan.y + 10, w: 80, h: 114 }, cardInner('cd-back', null, 136), { dur: .8 }));
+      for (let k = 0; k < theirs; k++) f.push(fly({ x: fan.x + 50 + k * 30, y: fan.y + 10, w: 80, h: 114 }, { x: hx + 60 + k * 120, y: L.hand.y, w: 136, h: 194 }, cardInner('cd-back', null, 80), { dur: .8 }));
+      gsap.set(['#hand', '#roboFan'], { autoAlpha: 0 });
+      await Promise.all(f); guard(g);
+      S.hand = theirs; S.comp = mine; renderHand(); renderFan(); gsap.set(['#hand', '#roboFan'], { autoAlpha: 1 });
+      sheet('screen-edge-good', 960, 540, 1920); pose('robo', 'dizzy', 2000); pose('flippy', 'cheer', 1800); say(st.ok, true);
+      await stamp('SWAP!', '#B57BFF', .6); await wait(1400, true);
     } else {
-      /* Mystery: flips to reveal a golden DROP 1; the learner discards one more card */
-      await revealCard('cd-mystery-reveal-associative', 'DROP 1', L.played); guard(g);
+      /* Mystery: flips to reveal DROP 1 (Part 3: discard one more card) or EXTRA CHANCE (Part 5: bonus turn) */
+      await revealCard(st.img, st.reveal, L.played); guard(g);
       S.played = { act: 'mystery' }; renderCentre();
       sparkles(960, 450, 14, 260); fx('fx-star-burst', 960, 450, 600, { dur: 1 }); sfx('good');
       pose('flippy', 'cheer', 1800); say(st.ok, true);
-      S.drop = shuffle(FILLER[1]).slice(0, 3); S.view = 'drop'; renderHand({ deal: true });
+      if (st.bonus) {
+        /* golden BONUS TURN burst; the turn arrow returns to the learner */
+        sheet('level-up-burst', 960, 520, 800); await setTurn('computer'); await setTurn('learner');
+        await stamp('BONUS TURN!', '#FFC83D', .7); await wait(1000, true);
+        return;
+      }
+      S.drop = shuffle(FILLER[S.part]).slice(0, 3); S.view = 'drop'; renderHand({ deal: true });
       idle(st.ok, () => gsap.to('#hand [data-opt]', { rotation: '+=3', duration: .15, yoyo: true, repeat: 5 }));
       const d = await waitFor('opt'); idleOff();
       const dr = rectOf(d.el); d.el.style.visibility = 'hidden';
@@ -783,54 +819,234 @@ const STEP = {
     }
   },
 
-  /* FLIP: the card lands on the centre pile, every card flips to the bracket side */
+  /* Part 4 row 41 (swap result): the learner's new cards flip face up; the computer's stay face down */
+  async swapResult(st) {
+    const g = GID; await setTurn('learner'); ost(st.ost); say(st.vo);
+    S.drop = FILLER[S.part].slice(0, S.hand); S.view = 'show'; renderHand();
+    const cards = $$('#hand .card'); sfx('flip');
+    await gsap.fromTo(cards, { rotationY: 90 }, { rotationY: 0, duration: D(.35), stagger: .15, ease: 'back.out(1.6)' }); guard(g);
+    gsap.to(cards, { keyframes: { y: [-30, 0, -12, 0] }, stagger: .1, duration: .7 });
+    cards.forEach(c => { const r = rectOf(c); sparkles(r.x + r.w / 2, r.y + r.h / 2, 6, 110); });
+    pulse($('#cntYou'), 1, 1.15); await wait(rt(st.vo), true);
+    await talk(st.ok); S.view = 'wait'; S.drop = []; renderHand(); guard(g);
+  },
+
+  /* FLIP: the card lands on the centre pile, every card flips to the next property's side */
   async flip(st) {
-    const g = GID; S.view = 'wait'; renderHand(); await setTurn('learner'); eqClear(); ost(st.ost);
+    const g = GID, from = S.part, to = from + 1; S.view = 'wait'; renderHand(); await setTurn('learner'); eqClear(); ost(st.ost);
     sfx('whoosh'); await fly(L.pile, L.centre, cardInner('cd-flip', null, L.pile.w), { dur: .6, rot: 0, trail: true });
     S.centre = { flip: true }; S.played = null; renderCentre();
     say(st.vo); pose('flippy', 'point', 2000);
     const c = $('#centreCard'), gk = glowAt(rectOf(c), 1.6), wob = gsap.to(c, { scale: 1.05, duration: .6, yoyo: true, repeat: -1, ease: 'sine.inOut' });
     idle(st.idle, () => pulse($('#centreCard'), 2, 1.12));
     await waitFor('centre'); idleOff(); gk(); wob.kill();
-    /* new cards with brackets: a fresh hand of 9 (8 matches + the Mystery drop), the computer back to 8 */
+    /* learner's cards, computer's cards and the draw pile flip together; new cards appear */
     sfx('magic'); sheet('level-up-burst', 960, 615, 900); fx('fx-star-burst', 960, 615, 800, { dur: 1 }); sparkles(960, 615, 16, 300); shake(8);
-    S.drop = FILLER[0].slice(0, 3); S.view = 'show'; renderHand(); await wait(300);
+    S.drop = FILLER[from].slice(0, 3); S.view = 'show'; renderHand(); await wait(300);
     await allFlip(() => {
-      S.part = 1; S.hand += 9; S.comp = START_CARDS; S.drop = FILLER[1].slice(0, 3); S.centre = null;
+      S.part = to; [S.hand, S.comp] = PARTS[to].deal; S.drop = FILLER[to].slice(0, 3); S.centre = null;
       renderHand(); renderFan(); renderCentre(); renderProgress(); updateTint();
     });
     say(st.ok, true); pose('flippy', 'cheer', 1800); await stamp('FLIP!', '#FFC83D', .5); await wait(1200, true);
     S.view = 'wait'; renderHand(); guard(g);
   },
 
-  /* Part 3 row 39: all eight pairs around the centre pile */
+  /* Part 5 row 72: all eight Identity examples; +0 and ×1 glow, ×0 appears separately; all four property badges appear */
   async complete(st) {
-    const g = GID; S.over = true; S.view = 'wait'; renderHand(); ost(st.ost); eqClear(); idleOff();
-    const scr = $('#scrWin'), ring = scr.querySelector('.ring'), pairs = S.pairs[1].length ? S.pairs[1] : PART3.filter(s => s.t === 'match').map(s => ({ a: s.centre, b: s.right, v: ev(s.centre) }));
-    ring.innerHTML = pairs.map((p, i) => `<div class="pair" style="left:${i < 4 ? 70 : 1250}px;top:${200 + (i % 4) * 118}px"><span class="pa">${spans(p.a)}</span><span class="t o">=</span><span class="pb">${spans(p.b)}</span><small>${p.v}</small></div>`).join('');
-    const acc = S.stats.correct + S.stats.wrong ? S.stats.correct / (S.stats.correct + S.stats.wrong) : 1, stars = acc >= .9 ? 3 : acc >= .7 ? 2 : 1;
-    scr.querySelector('.rating').innerHTML = [0, 1, 2].map(i => `<img class="st ${i === 1 ? 'mid' : ''}" src="${A('rewards/star-' + (i < stars ? 'filled' : 'empty'))}" alt="">`).join('');
+    const g = GID, P = PARTS[S.part]; S.view = 'wait'; renderHand(); ost(st.ost); eqClear(); idleOff();
+    const scr = $('#scrWin'), ring = scr.querySelector('.ring');
+    let pairs = S.pairs[S.part].length ? S.pairs[S.part] : PLAY[S.part].filter(s => s.t === 'match').map(s => pairOf(s, (s.rights || [s.right])[0], s.v));
+    pairs = [...pairs.filter(p => !p.zero), ...pairs.filter(p => p.zero)];
+    scr.querySelector('h2').textContent = st.ost;
+    scr.querySelector('.pcard img').src = A('cards/' + P.card); scr.querySelector('.pcard span').innerHTML = P.rule.join('<br>');
+    ring.innerHTML = pairs.map((p, i) => `<div class="pair${p.zero ? ' zero' : ''}" style="left:${i < 4 ? 70 : 1250}px;top:${200 + (i % 4) * 118 + (p.zero ? 26 : 0)}px"><span class="pa">${spans(p.a)}</span><span class="t o">=</span><span class="pb">${spans(p.b)}</span>${p.v != null ? `<small>${p.v}</small>` : ''}</div>`).join('');
+    const medals = scr.querySelector('.medals');
+    medals.innerHTML = PARTS.slice(0, 4).map(q => `<div class="md" style="--pc:${q.color}"><img src="${A(q.medal)}" alt=""><span>${q.name}</span></div>`).join('');
     scr.hidden = false; sfx('levelup'); pose('robo', 'sad');
     const chips = [...ring.children];
-    gsap.set(chips, { autoAlpha: 0 }); gsap.set(['#btnAgain', '#btnHome', scr.querySelector('.rating')], { autoAlpha: 0 });
+    gsap.set(chips, { autoAlpha: 0 }); gsap.set(medals.children, { autoAlpha: 0 });
     await gsap.timeline().fromTo(scr, { autoAlpha: 0 }, { autoAlpha: 1, duration: D(.4) })
       .fromTo(scr.querySelector('h2'), { scale: 0 }, { scale: 1, duration: D(.5), ease: 'back.out(2)' })
-      .fromTo(scr.querySelector('.pcard'), { scale: 0, rotation: -20 }, { scale: 1, rotation: 0, duration: D(.5), ease: 'back.out(2)' }, '-=.2');
+      .fromTo(scr.querySelector('.pcard'), { scale: 0, rotationY: 180 }, { scale: 1, rotationY: 0, duration: D(.6), ease: 'back.out(1.6)' }, '-=.2');
     guard(g);
     say(st.vo, true); gsap.to('#scrWin .rays', { rotation: 360, duration: 24, repeat: -1, ease: 'none' });
-    /* correct pairs animate one after another; brackets jump between the numbers */
     for (const c of chips) {
       const Ael = [...c.querySelectorAll('.pa .t')], Bel = [...c.querySelectorAll('.pb .t')];
       Bel.forEach(e => e.style.visibility = 'hidden');
-      gsap.fromTo(c, { autoAlpha: 0, scale: .6 }, { autoAlpha: 1, scale: 1, duration: D(.3), ease: 'back.out(2.4)' }); sfx('star');
+      if (!c.classList.contains('zero')) Ael.slice(-2).forEach(e => e.classList.add('glow'));
+      gsap.fromTo(c, { autoAlpha: 0, scale: .6 }, { autoAlpha: 1, scale: 1, duration: D(.3), ease: 'back.out(2.4)' }); sfx(c.classList.contains('zero') ? 'bad' : 'star');
       await wait(250); morph(c, Ael, Bel, { dur: .6 }); await wait(420);
     }
     guard(g);
-    /* the Associative Property card glows; level-complete confetti */
+    /* the Identity card glows; all four property badges appear; level-complete confetti */
     scr.querySelector('.pcard').classList.add('lit'); sfx('win'); confetti(90); sheet('confetti', 700, 420, 1200); sheet('confetti', 1220, 420, 1200); sheet('screen-edge-good', 960, 540, 1920);
     sparkles(960, 440, 16, 300); say(st.ok, true); pose('flippy', 'cheer');
+    await gsap.fromTo(medals.children, { autoAlpha: 0, scale: 0, rotation: -90 }, { autoAlpha: 1, scale: 1, rotation: 0, stagger: .25, duration: D(.45), ease: 'back.out(2.5)', onStart: () => sfx('star') }); guard(g);
+    await wait(3200, true);
+    await gsap.to(scr, { autoAlpha: 0, duration: D(.4) }); scr.hidden = true; scr.querySelector('.pcard').classList.remove('lit'); ost(''); guard(g);
+  },
+
+  /* Part 6 row 54: the computer is close to winning */
+  async warn(st) {
+    const g = GID; S.view = 'wait'; renderHand(); eqClear(); S.centre = null; S.played = null; renderCentre();
+    await setTurn('computer'); dimFan(false);
+    S.comp = st.comp; renderFan(); ost(st.ost); say(st.vo); pose('robo', 'laugh', 2600);
+    gsap.fromTo('#roboFan img', { y: 0 }, { keyframes: { y: [-30, 0, -14, 0] }, stagger: .12, duration: .8 });
+    miniStamp('WATCH OUT!', '#FF9F1C', 1450, 372, 1.6); pulse($('#cntCpu'), 3, 1.15);
+    await wait(rt(st.vo), true);
+    await talk(st.ok); guard(g);
+  },
+
+  /* Part 6 row 55: one card left; the learner must call FINAL FLIP before the last card unlocks */
+  async finalCall(st) {
+    const g = GID; await setTurn('learner'); eqClear(); dimHand(false); dimFan(false);
+    S.hand = 1; S.centre = { text: st.centre, p: S.part }; S.played = null; renderCentre(true);
+    S.opts = [{ text: st.card, correct: true }]; S.view = 'match'; S.glow = []; renderHand({ deal: true });
+    $('#hand').classList.add('callfirst');
+    ost(st.ost); pose('flippy', 'point', 2400); say(st.vo, true);
+    const b = $('#btnFinal'); b.hidden = false; b.classList.remove('on');
+    gsap.fromTo(b, { scale: 0 }, { scale: 1, duration: D(.45), ease: 'back.out(2.5)' });
+    const pulseB = () => pulse(b, 2, 1.1);
+    idle(st.idle, pulseB);
+    let wrong = 0, gk = null;
+    try {
+      for (;;) {
+        const e = await nextTap(); guard(g);
+        if (e.kind === 'final') break;
+        if (e.kind !== 'opt' || Date.now() < S.lock) continue;
+        /* the last card stays locked until the button is tapped */
+        S.lock = Date.now() + 700; wrong++; sfx('bad'); pose('flippy', 'oops', 1500);
+        gsap.fromTo(e.el, { x: 0 }, { keyframes: { x: [-16, 16, -12, 10, -6, 0] }, duration: D(.45), ease: 'none' });
+        if (wrong === 1) say(st.w1, true);
+        else if (wrong === 2) { say(st.w2, true); gsap.fromTo(b, { filter: 'brightness(1)' }, { filter: 'brightness(1.9)', duration: .14, yoyo: true, repeat: 7 }); }
+        else { say(st.w3, true); pose('flippy', 'point', 2400); pulseB(); if (!gk) gk = glowAt(rectOf(b), 1.25); }
+      }
+    } finally { idleOff(); if (gk) gk(); $('#hand').classList.remove('callfirst'); }
+    /* the button springs up and lights green */
+    sfx('good'); b.classList.add('on');
+    gsap.fromTo(b, { y: 0 }, { keyframes: { y: [-34, 0], scale: [1.22, 1] }, duration: D(.5), ease: 'back.out(2)' });
+    const r = rectOf(b); sparkles(r.x + r.w / 2, r.y + r.h / 2, 12, 200);
+    say(st.ok, true); pose('flippy', 'cheer', 1800); await wait(1800, true);
+    await gsap.to(b, { autoAlpha: 0, scale: .6, duration: D(.3) }); b.hidden = true; gsap.set(b, { clearProps: 'all' }); guard(g);
+  },
+
+  /* Part 6 row 57: the four property cards rise, flip and form a trophy; the names light one by one */
+  async victory(st) {
+    const g = GID; S.over = true; S.view = 'wait'; renderHand(); ost(st.ost); eqClear(); idleOff();
+    const scr = $('#scrStar'), tc = scr.querySelector('.tcards'), names = scr.querySelector('.names'), trophy = scr.querySelector('.trophy'), P4 = PARTS.slice(0, 4);
+    tc.innerHTML = P4.map(() => `<div class="tcard">${cardInner('cd-back', null, 170)}</div>`).join('');
+    names.innerHTML = P4.map(q => `<span style="--pc:${q.color}">${q.name}</span>`).join('');
+    const acc = S.stats.correct + S.stats.wrong ? S.stats.correct / (S.stats.correct + S.stats.wrong) : 1, stars = acc >= .9 ? 3 : acc >= .7 ? 2 : 1;
+    scr.querySelector('.rating').innerHTML = [0, 1, 2].map(i => `<img class="st ${i === 1 ? 'mid' : ''}" src="${A('rewards/star-' + (i < stars ? 'filled' : 'empty'))}" alt="">`).join('');
+    const cards = [...tc.children];
+    gsap.set([trophy, '#btnAgain', '#btnHome', scr.querySelector('.rating')], { autoAlpha: 0 });
+    scr.hidden = false; sfx('levelup'); pose('robo', 'sad');
+    await gsap.timeline().fromTo(scr, { autoAlpha: 0 }, { autoAlpha: 1, duration: D(.4) })
+      .fromTo(scr.querySelector('h2'), { scale: 0 }, { scale: 1, duration: D(.5), ease: 'back.out(2)' });
+    guard(g);
+    say(st.vo, true); gsap.to('#scrStar .rays', { rotation: 360, duration: 24, repeat: -1, ease: 'none' });
+    /* rise */
+    await gsap.fromTo(cards, { x: i => (i - 1.5) * 230, y: 700 }, { y: 0, duration: D(.6), stagger: .12, ease: 'back.out(1.4)', onStart: () => sfx('deal') }); guard(g);
+    /* flip, one by one */
+    for (let i = 0; i < 4; i++) {
+      const c = cards[i]; sfx('flip');
+      await gsap.to(c, { rotationY: 90, duration: D(.16), ease: 'power2.in' });
+      c.innerHTML = `<img src="${A('cards/' + P4[i].card)}" alt=""><img class="tico" src="${A('ui/ui-icon-' + P4[i].key)}" alt="">`;
+      await gsap.to(c, { rotationY: 0, duration: D(.22), ease: 'back.out(2)' }); guard(g);
+    }
+    /* form the trophy: the cards fan behind it */
+    await gsap.to(cards, { x: 0, y: -40, rotation: i => (i - 1.5) * 24, duration: D(.55), ease: 'power3.inOut' }); guard(g);
+    sfx('magic'); sheet('level-up-burst', 960, 420, 900);
+    await gsap.fromTo(trophy, { autoAlpha: 1, scale: 0 }, { scale: 1, duration: D(.5), ease: 'back.out(2)' }); guard(g);
+    gsap.fromTo(trophy, { rotationY: 0 }, { rotationY: 720, duration: D(1.6), ease: 'power2.inOut' });
+    for (const n of names.children) { n.classList.add('on'); sfx('star'); gsap.fromTo(n, { scale: .6 }, { scale: 1, duration: D(.35), ease: 'back.out(3)' }); await wait(380); }
+    guard(g);
+    sfx('win'); confetti(140); sheet('confetti', 500, 400, 1300); sheet('confetti', 1420, 400, 1300); sheet('confetti', 960, 300, 1500); sheet('screen-edge-good', 960, 540, 1920);
+    sparkles(960, 400, 20, 360); pose('flippy', 'cheer'); await wait(1400, true); say(st.ok, true);
     gsap.to(scr.querySelector('.rating'), { autoAlpha: 1, duration: .3 }); gsap.from(scr.querySelectorAll('.rating img'), { scale: 0, rotation: -90, stagger: .1, duration: D(.4), ease: 'back.out(2.5)' });
     gsap.fromTo(['#btnAgain', '#btnHome'], { autoAlpha: 0, scale: 0 }, { autoAlpha: 1, scale: 1, stagger: .1, duration: D(.35), ease: 'back.out(2.5)', delay: .6 });
+  }
+};
+
+/* the GOT IT panels' animations */
+function prepAssoc(E, pan) {
+  const [big, small] = pan.querySelectorAll('.xrow');
+  const fill = (row, a, b, v) => { row.querySelector('.xa').innerHTML = `<span class="lay la">${spans(a)}</span><span class="lay lb">${spans(b)}</span>`; row.querySelector('.xval').textContent = '= ' + v; };
+  fill(big, E.a, E.b, E.val); fill(small, E.ma, E.mb, E.mval);
+  gsap.set([big.querySelector('.xval'), small], { autoAlpha: 0 });
+}
+const EXPLAINERS = {
+  /* Part 3 row 20: three number cards, brackets move, the answer stays 10 */
+  async associative(E, pan, line, lit) {
+    const g = GID, [big, small] = pan.querySelectorAll('.xrow');
+    const parts = row => [[...row.querySelectorAll('.la .t')], [...row.querySelectorAll('.lb .t')]];
+    const [bA, bB] = parts(big); bB.forEach(e => e.style.visibility = 'hidden');
+    line(E.lines[0]);
+    await gsap.timeline().from(bA.filter(e => e.classList.contains('n')), { y: -160, autoAlpha: 0, rotation: -20, stagger: .15, duration: D(.4), ease: 'back.out(1.8)', onStart: () => sfx('deal') })
+      .from(bA.filter(e => !e.classList.contains('n')), { scale: 0, stagger: .08, duration: D(.3), ease: 'back.out(3)' }); guard(g);
+    await wait(1400, true); await gsap.to(big.querySelector('.xval'), { autoAlpha: 1, duration: D(.3) }); sfx('good'); await wait(2000, true);
+    line(E.lines[1]); gsap.to(big.querySelector('.xval'), { autoAlpha: .25, duration: .2 });
+    await morph(big.querySelector('.xa'), bA, bB, { keepA: false, glow: true, dur: 1 }); guard(g);
+    sfx('good'); await gsap.fromTo(big.querySelector('.xval'), { autoAlpha: .25, scale: 1.4 }, { autoAlpha: 1, scale: 1, duration: D(.4), ease: 'back.out(3)' }); await wait(2600, true);
+    await lit(E.lines[2]);
+    line(E.lines[3]);
+    const [sA, sB] = parts(small); sB.forEach(e => e.style.visibility = 'hidden'); gsap.set(small.querySelector('.xval'), { autoAlpha: 0 });
+    await gsap.to(small, { autoAlpha: 1, duration: D(.3) }); await wait(600);
+    await morph(small.querySelector('.xa'), sA, sB, { keepA: false, glow: true, dur: .9 }); await gsap.to(small.querySelector('.xval'), { autoAlpha: 1, duration: D(.3) }); guard(g);
+    await wait(1500, true);
+  },
+  /* Part 4 row 34: 3 rows of 6 blocks; a glowing line splits each row into 4 and 2; 12 and 6 combine to 18 */
+  async distributive(E, pan, line, lit) {
+    const g = GID, xd = pan.querySelector('.xd'), STEP_ = 58, GAP = 40, R = E.rows, C = E.cols, K = E.split;
+    let html = '<div class="grid">';
+    for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) html += `<i class="blk ${c < K ? 'pa' : 'pb'}" style="left:${c * STEP_}px;top:${r * STEP_}px"></i>`;
+    const gw = C * STEP_ - 8, gh = R * STEP_ - 8, aw = K * STEP_ - 8, bx = K * STEP_ + GAP, bw = (C - K) * STEP_ - 8;
+    html += `<div class="cut" style="left:${K * STEP_ - 4 + GAP / 2}px;height:${gh + 40}px"></div>`;
+    html += `<b class="glab g6" style="left:0;width:${gw}px;top:${gh + 12}px">${C}</b><b class="glab g4" style="left:0;width:${aw}px;top:${gh + 12}px">${K}</b><b class="glab g2" style="left:${bx}px;width:${bw}px;top:${gh + 12}px">${C - K}</b>`;
+    html += `<b class="rlab" style="left:-60px;top:${gh / 2 - 22}px">${R}</b></div>`;
+    html += `<div class="xeq">${E.eqs.map((e, i) => `<div class="xe e${i}" style="top:${i * 56}px">${spans(e)}</div>`).join('')}</div>`;
+    xd.innerHTML = html;
+    const blk = [...xd.querySelectorAll('.blk')], pb = [...xd.querySelectorAll('.blk.pb')], cut = xd.querySelector('.cut'), xe = i => xd.querySelector('.e' + i);
+    gsap.set([...blk, cut, ...xd.querySelectorAll('.glab, .rlab'), xe(1), xe(2), xe(3), xe(4)], { autoAlpha: 0 });
+    /* 1: 3 times 6 makes 18 */
+    line(E.lines[0]);
+    await gsap.fromTo(blk, { scale: 0 }, { autoAlpha: 1, scale: 1, duration: D(.25), stagger: .035, ease: 'back.out(2.5)', onStart: () => sfx('deal') }); guard(g);
+    gsap.to(xd.querySelectorAll('.g6, .rlab'), { autoAlpha: 1, duration: D(.3) });
+    await gsap.fromTo(xe(1), { autoAlpha: 0, x: 40 }, { autoAlpha: 1, x: 0, duration: D(.35) }); sfx('good'); await wait(rt(E.lines[0]), true);
+    /* 2: split 6 into 4 and 2 */
+    line(E.lines[1]);
+    await gsap.fromTo(cut, { autoAlpha: 1, scaleY: 0 }, { scaleY: 1, duration: D(.45), ease: 'power2.out' }); sfx('whoosh');
+    gsap.to(pb, { x: GAP, duration: D(.5), ease: 'back.out(1.6)' }); gsap.to(xd.querySelector('.g6'), { autoAlpha: 0, duration: .2 });
+    blk.forEach(el => el.classList.add('split'));
+    await gsap.to(xd.querySelectorAll('.g4, .g2'), { autoAlpha: 1, duration: D(.3), delay: .3 }); guard(g);
+    gsap.to(xe(1), { autoAlpha: .35, duration: .3 });
+    await gsap.fromTo(xe(2), { autoAlpha: 0, x: 40 }, { autoAlpha: 1, x: 0, duration: D(.35) }); await wait(1600, true);
+    await gsap.fromTo(xe(3), { autoAlpha: 0, x: 40 }, { autoAlpha: 1, x: 0, duration: D(.35) }); await wait(Math.max(1000, rt(E.lines[1]) - 2400), true); guard(g);
+    /* 3: add them together: still 18 */
+    line(E.lines[2]);
+    await gsap.fromTo(xe(4), { autoAlpha: 0, scale: 1.4 }, { autoAlpha: 1, scale: 1, duration: D(.4), ease: 'back.out(3)' });
+    [...xe(4).querySelectorAll('.t.n')].pop().classList.add('glow'); sfx('good');
+    gsap.to(blk, { keyframes: { y: [-10, 0] }, stagger: .02, duration: .35 }); await wait(rt(E.lines[2]), true); guard(g);
+    /* 4: the property name glows; 5: multiply each part and add */
+    await lit(E.lines[3]);
+    line(E.lines[4]); await wait(rt(E.lines[4]), true); guard(g);
+  },
+  /* Part 5 row 55: 8 + 0 = 8, 8 × 1 = 8, then 8 × 0 = 0 as a contrast */
+  async identity(E, pan, line, lit) {
+    const g = GID, xd = pan.querySelector('.xd');
+    xd.innerHTML = E.rows.map((r, i) => `<div class="xi${i === 2 ? ' zero' : ''}" style="top:${i * 92 + (i === 2 ? 14 : 0)}px">${spans(r)}</div>`).join('');
+    const rows = [...xd.children]; rows.forEach(r => gsap.set(r.children, { autoAlpha: 0 }));
+    for (let i = 0; i < 3; i++) {
+      line(E.lines[i]); const t = [...rows[i].children];
+      await gsap.fromTo(t[0], { autoAlpha: 0, scale: 0 }, { autoAlpha: 1, scale: 1, duration: D(.35), ease: 'back.out(2.5)', onStart: () => sfx('deal') });
+      await gsap.fromTo(t.slice(1, 3), { autoAlpha: 0, x: 120 }, { autoAlpha: 1, x: 0, duration: D(.45), stagger: .08, ease: 'back.out(1.6)' });
+      await wait(500);
+      await gsap.fromTo(t.slice(3), { autoAlpha: 0, scale: 1.5 }, { autoAlpha: 1, scale: 1, duration: D(.35), ease: 'back.out(3)' }); guard(g);
+      t[4].classList.add('glow');
+      if (i === 2) { sfx('bad'); gsap.fromTo(rows[i], { x: 0 }, { keyframes: { x: [-12, 12, -8, 0] }, duration: .4 }); } else { sfx('good'); t.slice(1, 3).forEach(e => e.classList.add('glow')); }
+      await wait(rt(E.lines[i]), true); guard(g);
+    }
+    await lit(E.lines[3]);
   }
 };
 
@@ -867,30 +1083,26 @@ function resetMotion() {
   GID++; const r = tapRes; tapRes = null; if (r) r({ kind: 'stale' }); idleOff(); clearGlow();
   gsap.globalTimeline.getChildren(true, true, true).forEach(t => t.kill());
   gsap.globalTimeline.resume(); paused = false;
-  $('#fxLayer').innerHTML = ''; $('#preview')?.remove(); $('#flipPreview')?.remove(); hideGo();
+  $('#fxLayer').innerHTML = ''; $('#preview')?.remove(); $('#flipPreview')?.remove(); hideGo(); $('#btnFinal').hidden = true; gsap.set('#btnFinal', { clearProps: 'all' });
   gsap.set('#stamp', { autoAlpha: 0 }); gsap.set(['#world', '#centre', '#hand', '#bubble', '#roboFan', '#turnPtr', '#equation', '#ost'], { clearProps: 'all' });
-  $('#hand').classList.remove('locked'); $('#pile').classList.remove('live'); $('#equation').innerHTML = '';
+  $('#hand').classList.remove('locked', 'callfirst'); $('#pile').classList.remove('live'); $('#equation').innerHTML = '';
   try { speechSynthesis.cancel(); } catch (e) { }
 }
-/* start a part directly (Play again, tester jumps) */
-async function startPart(p) {
-  resetMotion();
-  ['#scrTitle', '#scrTeach', '#scrExplain', '#scrPause', '#scrWin', '#qa'].forEach(s => $(s).hidden = true);
-  fresh(); S.part = p; if (p === 1) { S.hand = 9; S.done[0] = MATCHES[0]; }
-  renderAll(); breathe(); pose('flippy', 'idle'); pose('robo', 'idle'); ost('');
+const SCREENS = ['#scrTitle', '#scrTeach', '#scrExplain', '#scrPause', '#scrWin', '#scrStar', '#qa'];
+/* table state for jumping straight into a part (tester jumps, Play again) */
+function jumpState(p) { fresh(); S.part = p; [S.hand, S.comp] = PARTS[p].deal; for (let k = 0; k < p; k++) S.done[k] = MATCHES[k]; }
+async function boot(p, run) {
+  resetMotion(); SCREENS.forEach(s => $(s).hidden = true);
+  jumpState(p); renderAll(); breathe(); pose('flippy', 'idle'); pose('robo', 'idle'); ost('');
   await setTurn('learner', true); $('#turnPtr').style.opacity = '';
-  try { await playGame(p); } catch (e) { if (e !== STALE) console.error(e); }
+  try { await run(); } catch (e) { if (e !== STALE) console.error(e); }
 }
-async function jumpHow() {
-  resetMotion(); ['#scrTitle', '#scrTeach', '#scrExplain', '#scrPause', '#scrWin', '#qa'].forEach(s => $(s).hidden = true);
-  fresh(); renderAll(); breathe(); await setTurn('learner', true); $('#turnPtr').style.opacity = '';
-  try { await howTo(); } catch (e) { if (e !== STALE) console.error(e); }
-}
-async function jumpComplete() {
-  resetMotion(); ['#scrTitle', '#scrTeach', '#scrExplain', '#scrPause', '#qa'].forEach(s => $(s).hidden = true);
-  fresh(); S.part = 1; S.done = [...MATCHES]; S.hand = 0; renderAll(); breathe();
-  try { await STEP.complete(PART3[PART3.length - 1]); } catch (e) { if (e !== STALE) console.error(e); }
-}
+/* start a part directly (Play again, tester jumps) */
+const startPart = p => boot(p, () => playGame(p));
+const jumpHow = () => boot(0, howTo);
+/* Part 5 row 72, then Part 6 */
+const jumpComplete = () => boot(3, async () => { S.done[3] = MATCHES[3]; S.hand = 1; renderAll(); await STEP.complete(PLAY[3][PLAY[3].length - 1]); await playGame(4); });
+const jumpVictory = () => boot(4, () => { S.done = [...MATCHES]; S.hand = 0; renderAll(); return STEP.victory(PLAY[4][PLAY[4].length - 1]); });
 
 let paused = false;
 function openPause() {
@@ -910,7 +1122,8 @@ function syncOpts() { ['#optVoice', '#optVoice2'].forEach(s => $(s).checked = op
 document.addEventListener('pointerdown', audioInit, { once: true });
 
 /* QA jump menu (press Q) */
-const JUMPS = [['Hook', '#F06A2B', hook], ['How to play', '#8B5CF6', jumpHow], ['Part 2 · Commutative', PARTS[0].color, () => startPart(0)], ['Part 3 · Associative', PARTS[1].color, () => startPart(1)], ['Complete', '#555', jumpComplete]];
+const JUMPS = [['Hook', '#555', hook], ['How to play', '#555', jumpHow], ...PARTS.map((q, i) => [`Part ${i + 2} · ${q.name}`, q.color, () => startPart(i)]),
+  ['Identity complete', '#555', jumpComplete], ['Victory', '#555', jumpVictory]];
 function buildJump(el) {
   el.innerHTML = JUMPS.map(([n, c], i) => `<button style="--pc:${c}" data-j="${i}">${n}</button>`).join('');
   el.onclick = e => { const b = e.target.closest('[data-j]'); if (!b) return; audioInit(); JUMPS[+b.dataset.j][2](); };
@@ -920,11 +1133,11 @@ document.addEventListener('keydown', e => {
   if (e.key === 'q' || e.key === 'Q') { const q = $('#qa'); q.hidden = !q.hidden; }
   if (e.key === 'Escape') { if (paused) closePause(); else openPause(); }
 });
-/* tester deep links: index.html#part2, #part3, #how, #complete */
-const deep = { '#how': jumpHow, '#part2': () => startPart(0), '#part3': () => startPart(1), '#complete': jumpComplete }[location.hash];
+/* tester deep links: index.html#how, #part2 … #part6, #complete (Identity complete), #victory */
+const deep = { '#how': jumpHow, ...Object.fromEntries(PARTS.map((q, i) => ['#part' + (i + 2), () => startPart(i)])), '#complete': jumpComplete, '#victory': jumpVictory }[location.hash];
 
 window.claude?.hot?.snapshot?.(() => ({}));
-window.NF_DEBUG = { get S() { return S; }, tap };
+window.NF_DEBUG = { get S() { return S; }, tap, eqShow, eqOf };
 
 if (deep) deep(); else hook();
 })();

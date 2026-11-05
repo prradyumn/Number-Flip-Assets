@@ -46,6 +46,8 @@
 
       <!-- one big action button: PLAY / NEXT -->
       <button id="btnGo" class="imgbtn" hidden><img src="assets/ui/ui-primary-button.webp" alt=""><span>PLAY</span></button>
+      <!-- Part 6 row 55: call FINAL FLIP before the last card -->
+      <button id="btnFinal" class="imgbtn" hidden aria-label="Call FINAL FLIP"><img src="assets/ui/ui-last-card-button.webp" alt=""><span>FINAL FLIP!</span></button>
       <div id="setupOpts" class="toggles" hidden><label class="toggle"><input type="checkbox" id="optVoice"><span class="knob"></span>Read lines aloud</label></div>
     </div>
 
@@ -76,15 +78,16 @@
       </div>
     </section>
 
-    <!-- Part 3 row 20: property explanation -->
+    <!-- property explanations: Part 3 row 20, Part 4 row 34, Part 5 row 55 -->
     <section id="scrExplain" class="screen dim" hidden>
       <div class="panel reveal explain">
         <img class="panel-bg" src="assets/ui/ui-property-reveal-panel.webp" alt="">
-        <img class="medal" src="assets/rewards/medal-associative-unlocked.webp" alt="">
+        <img class="medal" src="" alt="">
         <p class="tag">Property</p>
-        <h2 class="pname">ASSOCIATIVE PROPERTY</h2>
+        <h2 class="pname"></h2>
         <div class="xrow big"><div class="xa"></div><div class="xval"></div></div>
         <div class="xrow small"><div class="xa"></div><div class="xval"></div></div>
+        <div class="xd" hidden></div>
         <p class="xcap"></p>
         <button class="imgbtn go" hidden><img src="assets/ui/ui-primary-button.webp" alt=""><span>GOT IT</span></button>
       </div>
@@ -104,13 +107,24 @@
       </div>
     </section>
 
-    <!-- Part 3 row 39: property completion -->
+    <!-- Part 5 row 72: property completion -->
     <section id="scrWin" class="screen" hidden>
       <img class="bg" src="assets/bg/bg-victory.webp" alt="">
       <img class="rays" src="assets/fx/fx-win-rays.webp" alt="">
-      <h2>ASSOCIATIVE COMPLETE!</h2>
+      <h2></h2>
       <div class="ring"></div>
-      <div class="pcard"><img src="assets/cards/cd-front-associative.webp" alt=""><span>( a + b ) + c<br>=<br>a + ( b + c )</span></div>
+      <div class="pcard"><img src="" alt=""><span></span></div>
+      <div class="medals"></div>
+    </section>
+
+    <!-- Part 6 row 57: victory -->
+    <section id="scrStar" class="screen" hidden>
+      <img class="bg" src="assets/bg/bg-victory.webp" alt="">
+      <img class="rays" src="assets/fx/fx-win-rays.webp" alt="">
+      <h2>FINAL FLIP STAR!</h2>
+      <div class="tcards"></div>
+      <img class="trophy" src="assets/ui/ui-trophy.webp" alt="Trophy">
+      <div class="names"></div>
       <div class="rating"></div>
       <button class="imgbtn" id="btnAgain"><img src="assets/ui/ui-primary-button.webp" alt=""><span>PLAY AGAIN</span></button>
       <button class="imgbtn" id="btnHome"><img src="assets/ui/ui-secondary-button.webp" alt=""><span>HOME</span></button>
