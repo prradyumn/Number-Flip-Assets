@@ -17,104 +17,77 @@
       <div id="tint"></div>
 
       <!-- top bar -->
-      <div id="progress" aria-label="Round progress"></div>
+      <div id="progress" aria-label="Progress" class="pill"></div>
       <button id="btnSound" class="iconbtn" aria-label="Sound on or off"><img src="assets/ui/ui-icon-sound-on.webp" alt=""></button>
       <button id="btnPause" class="iconbtn" aria-label="Pause"><img src="assets/ui/ui-icon-pause.webp" alt=""></button>
 
-      <!-- HUD: rank, XP, streak -->
-      <div id="hud">
-        <img id="rankImg" src="assets/rewards/rank-bronze.webp" alt="Rank">
-        <div id="xp"><div class="xp-clip"><img src="assets/rewards/xp-fill.webp" alt=""></div><img class="xp-frame" src="assets/rewards/xp-frame.webp" alt=""><img class="xp-tip" src="assets/rewards/xp-glow-tip.webp" alt=""><span id="xpText">0 XP</span></div>
-        <div id="streak"><img src="assets/rewards/streak-flame.webp" alt="Streak"><b>×2</b></div>
-        <div id="rankRibbon"><img src="assets/rewards/ribbon-level-up.webp" alt="Level up"></div>
-      </div>
 
-      <!-- characters + speech -->
+      <!-- characters + speech: Flippy voices every line, Robo is the computer player -->
       <div id="flippyWrap" class="charwrap"><img id="flippy" src="assets/characters/ch-flippy-idle.webp" alt="Flippy"></div>
       <div id="bubble" class="bubble"><img class="bubble-bg" src="assets/ui/ui-caption-bubble.webp" alt=""><span class="bubble-name">Flippy</span><p id="bubbleText"></p></div>
-      <div id="roboWrap" class="charwrap"><img id="robo" src="assets/characters/ch-robo-idle.webp" alt="Robo"></div>
-      <div id="roboBubble" class="bubble small"><img class="bubble-bg" src="assets/ui/ui-caption-bubble.webp" alt=""><span class="bubble-name robo">Robo</span><p></p></div>
+      <div id="roboWrap" class="charwrap"><img id="robo" src="assets/characters/ch-robo-idle.webp" alt="Computer"></div>
       <div id="roboFan"></div>
-      <div id="roboCount" class="count-badge"><b>5</b><small>cards</small></div>
 
-      <!-- table -->
-      <img id="slotDraw" class="slot" src="assets/feedback/slot-draw-pile.webp" alt="">
-      <img id="slotPlay" class="slot" src="assets/feedback/slot-play-here.webp" alt="">
-      <div id="matchLabel">MATCH THIS</div>
-      <div id="pile" aria-hidden="true">
+      <!-- table: draw pile, centre card, centre pile -->
+      <button id="pile" aria-label="Draw pile">
         <img src="assets/cards/cd-back.webp" alt=""><img src="assets/cards/cd-back.webp" alt=""><img src="assets/cards/cd-back.webp" alt="">
-      </div>
+      </button>
       <div id="centre"></div>
-      <div id="turnChip"></div>
-      <div id="equation"><div class="eq-line"></div><div class="eq-val"></div></div>
+      <div id="ost" aria-live="polite"></div>
+      <div id="equation"></div>
 
-      <!-- avatars with live card counts, whose-turn arrow, hint -->
-      <div id="avFlippy" class="avatar"><div class="av-face"><img src="assets/characters/ch-flippy-idle.webp" alt=""></div><img class="av-frame" src="assets/feedback/avatar-frame-flippy.webp" alt=""><b class="av-n">5</b></div>
-      <div id="avRobo" class="avatar"><div class="av-face"><img src="assets/characters/ch-robo-idle.webp" alt=""></div><img class="av-frame" src="assets/feedback/avatar-frame-robo.webp" alt=""><b class="av-n">5</b></div>
-      <img id="turnArrow" src="assets/feedback/active-player-arrow.webp" alt="">
-      <button id="btnHint" aria-label="Show a hint"><img src="assets/feedback/hint-lightbulb.webp" alt=""></button>
+      <!-- card counts and the turn pointer -->
+      <div id="cntYou" class="cnt"><span>YOU</span><b>8</b></div>
+      <div id="cntCpu" class="cnt"><span>COMPUTER</span><b>8</b></div>
+      <img id="turnPtr" src="assets/feedback/active-player-arrow.webp" alt="">
 
       <!-- learner hand -->
-      <div id="handBar"></div>
-      <div id="pocket"><span>SPECIALS</span></div>
-      <div id="handLabel">Your hand · <b id="handCount">5</b></div>
       <div id="hand"></div>
-      <div id="verdict" hidden>
-        <p class="verdict-q"></p>
-        <button class="imgbtn verdict-ok" data-v="ok"><img src="assets/ui/ui-secondary-button.webp" alt=""><span>FAIR MATCH</span></button>
-        <button class="imgbtn verdict-no" data-v="challenge"><img src="assets/ui/ui-last-card-button.webp" alt=""><span>CHALLENGE!</span></button>
-      </div>
-      <button id="btnLast" class="imgbtn" hidden><img src="assets/ui/ui-last-card-button.webp" alt=""><span>LAST CARD!</span></button>
+
+      <!-- one big action button: PLAY / NEXT -->
+      <button id="btnGo" class="imgbtn" hidden><img src="assets/ui/ui-primary-button.webp" alt=""><span>PLAY</span></button>
+      <div id="setupOpts" class="toggles" hidden><label class="toggle"><input type="checkbox" id="optVoice"><span class="knob"></span>Read lines aloud</label></div>
     </div>
 
     <div id="fxLayer"></div>
     <div id="stamp"><img src="assets/ui/ui-stamp-badge.webp" alt=""><span></span></div>
 
-    <!-- title -->
+    <!-- row 1: game hook -->
     <section id="scrTitle" class="screen">
       <img class="bg" src="assets/bg/bg-magic-terrace.webp" alt="">
       <img class="rays" src="assets/fx/fx-win-rays.webp" alt="">
       <div class="title-plaque"><img src="assets/ui/ui-title-plaque.webp" alt=""><h1><span class="w1">NUMBER</span> <span class="w2"><i>F</i><i>L</i><i>I</i><i>P</i><i>!</i></span></h1></div>
-      <p class="subtitle">A card game of number properties · Grade 6</p>
-      <div class="title-fan">
-        <img src="assets/cards/cd-front-commutative.webp" alt=""><img src="assets/cards/cd-skip.webp" alt=""><img src="assets/cards/cd-front-associative.webp" alt="">
-        <img src="assets/cards/cd-mystery.webp" alt=""><img src="assets/cards/cd-front-distributive.webp" alt=""><img src="assets/cards/cd-reverse.webp" alt=""><img src="assets/cards/cd-front-identity.webp" alt="">
-      </div>
-      <img class="t-flippy" src="assets/characters/ch-flippy-idle.webp" alt="Flippy">
+      <p class="subtitle"></p>
+      <div id="hookCards"></div>
+      <img class="t-flippy" src="assets/characters/ch-flippy-talking.webp" alt="Flippy">
       <img class="t-robo" src="assets/characters/ch-robo-idle.webp" alt="Robo">
-      <button id="btnPlay" class="imgbtn big"><img src="assets/ui/ui-primary-button.webp" alt=""><span>PLAY</span></button>
-      <div class="toggles">
-        <label class="toggle"><input type="checkbox" id="optChallenge"><span class="knob"></span>Catch Robo cheating</label>
-        <label class="toggle"><input type="checkbox" id="optVoice"><span class="knob"></span>Read lines aloud</label>
-      </div>
-      <button id="btnHow" class="imgbtn"><img src="assets/ui/ui-secondary-button.webp" alt=""><span>HOW TO PLAY</span></button>
-      <p class="hint-q">Testers: press <b>Q</b> to jump to any round</p>
+      <button id="btnSkipHook" class="skip-hook">Tap to skip ›</button>
     </section>
 
-    <!-- property reveal -->
-    <section id="scrReveal" class="screen dim" hidden>
+    <!-- teaching panel (observe) -->
+    <section id="scrTeach" class="screen dim" hidden>
       <div class="panel reveal">
         <img class="panel-bg" src="assets/ui/ui-property-reveal-panel.webp" alt="">
         <img class="medal" src="" alt="">
-        <p class="tag">Property unlocked</p>
+        <p class="tag">Game rule</p>
         <h2></h2>
         <p class="how"></p>
         <div class="rule"></div>
-        <div class="pairs"></div>
-        <p class="note"></p>
-        <button class="imgbtn go"><img src="assets/ui/ui-primary-button.webp" alt=""><span>FLIP!</span></button>
       </div>
     </section>
 
-    <!-- how to play -->
-    <section id="scrHow" class="screen dim" hidden>
-      <h2 class="how-title">How to play</h2>
-      <div class="how-cards">
-        <figure><img src="assets/tutorial/tutorial-match.webp" alt=""><figcaption><b>1 · Match</b>Find the card that gives the same answer as the middle card.</figcaption></figure>
-        <figure><img src="assets/tutorial/tutorial-special.webp" alt=""><figcaption><b>2 · Special cards</b>Skip, Reverse, Swap and Mystery cards help you. Play them whenever you like.</figcaption></figure>
-        <figure><img src="assets/tutorial/tutorial-last-card.webp" alt=""><figcaption><b>3 · Last card</b>Tap LAST CARD! before you play your final card.</figcaption></figure>
+    <!-- Part 3 row 20: property explanation -->
+    <section id="scrExplain" class="screen dim" hidden>
+      <div class="panel reveal explain">
+        <img class="panel-bg" src="assets/ui/ui-property-reveal-panel.webp" alt="">
+        <img class="medal" src="assets/rewards/medal-associative-unlocked.webp" alt="">
+        <p class="tag">Property</p>
+        <h2 class="pname">ASSOCIATIVE PROPERTY</h2>
+        <div class="xrow big"><div class="xa"></div><div class="xval"></div></div>
+        <div class="xrow small"><div class="xa"></div><div class="xval"></div></div>
+        <p class="xcap"></p>
+        <button class="imgbtn go" hidden><img src="assets/ui/ui-primary-button.webp" alt=""><span>GOT IT</span></button>
       </div>
-      <button id="btnHowGo" class="imgbtn"><img src="assets/ui/ui-primary-button.webp" alt=""><span>LET'S PLAY</span></button>
     </section>
 
     <!-- pause -->
@@ -125,24 +98,20 @@
         <button class="imgbtn" id="btnResume"><img src="assets/ui/ui-primary-button.webp" alt=""><span>RESUME</span></button>
         <button class="imgbtn" id="btnRestart"><img src="assets/ui/ui-secondary-button.webp" alt=""><span>RESTART</span></button>
         <div class="toggles small">
-          <label class="toggle"><input type="checkbox" id="optChallenge2"><span class="knob"></span>Catch Robo cheating</label>
           <label class="toggle"><input type="checkbox" id="optVoice2"><span class="knob"></span>Read lines aloud</label>
         </div>
         <div class="jump"></div>
       </div>
     </section>
 
-    <!-- win -->
+    <!-- Part 3 row 39: property completion -->
     <section id="scrWin" class="screen" hidden>
       <img class="bg" src="assets/bg/bg-victory.webp" alt="">
       <img class="rays" src="assets/fx/fx-win-rays.webp" alt="">
-      <img class="trophy" src="assets/ui/ui-trophy.webp" alt="Trophy">
-      <h2>NUMBER FLIP STAR!</h2>
+      <h2>ASSOCIATIVE COMPLETE!</h2>
+      <div class="ring"></div>
+      <div class="pcard"><img src="assets/cards/cd-front-associative.webp" alt=""><span>( a + b ) + c<br>=<br>a + ( b + c )</span></div>
       <div class="rating"></div>
-      <div class="stats"></div>
-      <div class="achv"></div>
-      <img class="w-flippy" src="assets/characters/ch-flippy-cheering.webp" alt="">
-      <img class="w-robo" src="assets/characters/ch-robo-sad.webp" alt="">
       <button class="imgbtn" id="btnAgain"><img src="assets/ui/ui-primary-button.webp" alt=""><span>PLAY AGAIN</span></button>
       <button class="imgbtn" id="btnHome"><img src="assets/ui/ui-secondary-button.webp" alt=""><span>HOME</span></button>
     </section>

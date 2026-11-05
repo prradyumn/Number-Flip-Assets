@@ -1,4 +1,4 @@
-# Number Flip: playable build
+# Number Flip: playable build (V2)
 
 Open `index.html` in Chrome, or run a local server from this folder (`npx serve .`) and open the link it prints.
 
@@ -8,32 +8,31 @@ Open `index.html` in Chrome, or run a local server from this folder (`npx serve 
 | --- | --- |
 | `index.html` | The page: stage, screens and buttons |
 | `css/style.css` | Layout on a fixed 1920 × 1080 stage that scales to any screen |
-| `js/content.js` | All questions, scripted events and character lines. Edit content here. |
-| `js/game.js` | Game flow, rendering, sound and every GSAP animation |
+| `js/content.js` | Every line, card and step from the V2 sheet ("Number flip - Game V2"), with the sheet's row numbers in comments. Edit content here. |
+| `js/game.js` | Game flow (a step runner that plays the sheet row by row), rendering, sound and every GSAP animation |
 | `vendor/gsap.min.js` | GSAP 3.12.5 |
-| `assets/` | Only the art the game uses (WebP): cards, characters (idle + throw poses), hands, rewards, feedback, tutorial, effects sheets, audio (mp3 + ogg) |
 
-## How it plays
+## How it plays (V2 sheet)
 
-- 4 rounds: Commutative, Associative, Distributive, Identity. Each round has 4 matches. A FLIP card takes the game to the next round.
-- The game ends with a race to empty your hand. The learner taps **LAST CARD!** before playing their final card; forgetting costs 1 card.
-- Action cards arrive at the moments the concept doc sets (Skip, Reverse, Mystery, Swap Hands). The learner chooses when to play them.
-- Wrong answers get help that builds up: an explanation, then a glowing hint, then Draw 1 with a guided retry.
-- Optional **Catch Robo cheating** mode: Robo sometimes plays a wrong match, and the learner decides whether to challenge it.
-- **Play again** deals random questions; the first game follows the concept doc's script.
+1. **Hook** (row 1): cards fly in, shuffle into a deck, the title glows.
+2. **Setup** (row 2): 8 cards dealt to each player (computer's face down), tap PLAY.
+3. **How to Play 1-4** (rows 3-6): match the glowing card, follow the turn arrow (NEXT), preview Skip / Reverse / Draw / Swap, tap FLIP. Then "Ready to play?".
+4. **Part 2: Commutative** (2 players): teaching rule, guided tutorial, 7 practice matches, computer turns, learner Skip and Reverse, computer Reverse and Skip, then the FLIP card.
+5. **Part 3: Associative** (2 players): teaching rule, the 2 · 3 · 5 bracket explanation (GOT IT), guided tutorial, 7 practice matches, computer turns, learner Reverse, Mystery (DROP 1), then **Associative Complete** with all 8 pairs.
+
+Feedback on every match follows the sheet:
+- Miss 1: "Check the numbers again." The card shakes and returns.
+- Miss 2: the explanation line; the numbers swap (or the brackets move) in the equation panel.
+- Miss 3: "Oops! No match yet! Draw one card!" The draw pile glows; the learner taps it, takes 1 penalty card, then the correct card glows with "Find …!".
+- Correct: the card goes to the centre pile, the numbers swap / brackets jump, and both cards show the answer.
+- Inactivity: the sheet's inactivity line and animation after 8 s, then every 12 s.
 
 ## Tester shortcuts
 
-- **Q**: jump menu (any round, the final round, the win screen)
+- **Q**: jump menu (Hook, How to play, Part 2, Part 3, Complete)
 - **Esc**: pause
+- Deep links: `index.html#how`, `#part2`, `#part3`, `#complete`
 
 ## Still to add
 
 - Recorded voice-over. "Read lines aloud" uses the browser voice for now.
-
-## Game feel (added)
-
-- **Throwing:** Flippy and Robo swap to their throw pose, an arm slides out of the shoulder, grips the card and flicks it onto the table (`handThrow` in `js/game.js`). Flippy deals penalty cards and action cards; Robo throws its own plays and Mystery Draw 2.
-- **Progress:** XP bar and rank (bronze, silver, gold, diamond), a streak flame with a ×2 / ×3 XP multiplier, 1 to 3 stars per round, medals that unlock in the top bar, and six achievements on the win screen. Best XP is kept in `localStorage` (`nf-best`).
-- **Clarity:** "MATCH THIS" label, a play-here slot, avatars with live card counts, a whose-turn arrow, a hint bulb, and a first-time How to play screen (`nf-how` in `localStorage`).
-- **Effects and sound:** sprite-sheet effects in `assets/effects` (`sheet()`), recorded sounds in `assets/audio` (`AUDIO` map in `sfx()`; cues without a file fall back to the small synth). Reduced-motion turns the sheet effects off.

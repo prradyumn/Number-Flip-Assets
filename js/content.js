@@ -1,100 +1,108 @@
-/* Number Flip — content only: rounds, questions, generators, scripted events and lines. No game logic. */
+/* Number Flip V2: content only. Every line, card and step here comes from "Number flip - Game V2" (the LXD sheet).
+   Row numbers in the comments are the sheet's SNo. No game logic lives in this file. */
 (function () {
-  const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
   const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-  const ev = s => { try { if (/_|\?/.test(s)) return null; return Function('"use strict";return (' + s.replace(/×/g, '*').replace(/−/g, '-') + ')')(); } catch (e) { return null; } };
+  const ev = s => { try { return Function('"use strict";return (' + s.replace(/×/g, '*') + ')')(); } catch (e) { return null; } };
 
-  /* One entry per round. key = asset suffix (cards, icons). */
-  const PHASES = [
-    { key: 'commutative', name: 'Commutative', short: 'Swap', color: '#2F7CF6', ost: 'COMMUTATIVE PROPERTY',
-      how: 'Swap the order. The answer stays the same.', rule: ['a + b = b + a', 'a × b = b × a'],
-      reveal: 'Great! You switched the numbers and kept the answer the same!', flip: 'FLIP! New cards, new trick!',
-      praise: 'Same two numbers, swapped. Same answer!', hintq: 'Which card keeps the SAME two numbers and the same sign, just swapped?', counter: 'Careful: 5 − 3 ≠ 3 − 5. Subtraction cannot be swapped.' },
-    { key: 'associative', name: 'Associative', short: 'Group', color: '#13A46B', ost: 'ASSOCIATIVE PROPERTY',
-      how: 'Move the brackets. The answer stays the same.', rule: ['(a + b) + c = a + (b + c)', '(a × b) × c = a × (b × c)'],
-      reveal: 'Different groups, same answer!', flip: "FLIP! Let's see what's next!",
-      praise: 'Same numbers, brackets moved. Same answer!', hintq: 'Which card keeps the same numbers and signs in the same order, with only the brackets moved?', counter: 'Careful: (8 − 4) − 2 ≠ 8 − (4 − 2). Brackets matter for −.' },
-    { key: 'distributive', name: 'Distributive', short: 'Split', color: '#F06A2B', ost: 'DISTRIBUTIVE PROPERTY',
-      how: 'Multiply each part, then add.', rule: ['a × (b + c) = (a × b) + (a × c)'],
-      reveal: 'Great! You broke the numbers into smaller parts!', flip: 'FLIP! Can you keep the number the same?',
-      praise: 'Each part got multiplied, then added. Same answer!', hintq: 'Which card multiplies the first number by EACH part inside the brackets?', counter: 'Careful: 3 × (4 + 2) ≠ (3 × 4) + 2. Multiply BOTH parts.' },
-    { key: 'identity', name: 'Identity', short: 'Same', color: '#8B5CF6', ost: 'IDENTITY PROPERTY',
-      how: 'Adding 0 or multiplying by 1 keeps a number the same.', rule: ['a + 0 = a', 'a × 1 = a'],
-      reveal: 'Adding 0 or multiplying by 1 keeps the number the same!', note: 'Watch out: × 0 always gives 0. That is the zero property.',
-      praise: 'Nothing changed. Adding 0 or × 1 keeps it the same!', hintq: 'Which card leaves the number exactly the same?' },
-    { key: 'last-card', name: 'Last Card', short: 'Final', color: '#E8384F', icon: 'star' }
+  /* Gameplay rules (sheet header): learner and computer start with 8 cards each. */
+  const START_CARDS = 8;
+
+  const PARTS = [
+    { key: 'commutative', name: 'Commutative', color: '#2F7CF6', title: 'COMMUTATIVE PROPERTY',
+      teach: 'Match the same numbers in a different order. Changing the order in addition or multiplication does not change the answer.',
+      rule: ['a + b = b + a', 'a × b = b × a'] },
+    { key: 'associative', name: 'Associative', color: '#13A46B', title: 'ASSOCIATIVE PROPERTY',
+      teach: 'Changing the grouping of numbers in addition or multiplication does not change the answer.',
+      rule: ['(a + b) + c = a + (b + c)', '(a × b) × c = a × (b × c)'] }
   ];
 
-  const C = (centre, rights, wrongs, reveal, val, vo, extra = {}) => ({ centre, rights, wrongs, reveal, val, vo, ...extra });
-
-  /* The concept doc's scripted questions: tutorial + 3 practice per round. */
-  const SCRIPT = [
-    [C('4 + 6', ['6 + 4'], ['4 + 5', '7 + 2'], '4 + 6 = 6 + 4', '10 = 10', 'Find the card with the same numbers, but switched!'),
-     C('5 + 8', ['8 + 5'], ['6 + 7', '8 + 2'], '5 + 8 = 8 + 5', '13 = 13', 'Find a matching card!'),
-     C('3 × 7', ['7 × 3'], ['3 × 6', '7 + 3'], '3 × 7 = 7 × 3', '21 = 21', 'Play the matching card!'),
-     C('9 + 4', ['4 + 9'], ['6 + 7', '4 + 8'], '9 + 4 = 4 + 9', '13 = 13', 'Find the next match!')],
-    [C('(2 + 3) + 5', ['2 + (3 + 5)'], ['(2 + 4) + 5', '3 + (2 + 4)'], '(2 + 3) + 5 = 2 + (3 + 5)', '10 = 10', 'Same numbers! Find a different group!'),
-     C('(4 + 6) + 2', ['4 + (6 + 2)'], ['(4 + 6) + 3', '5 + (5 + 2)'], '(4 + 6) + 2 = 4 + (6 + 2)', '12 = 12', 'Find the matching group!'),
-     C('(3 × 2) × 5', ['3 × (2 × 5)'], ['(3 + 2) × 5', '3 × (2 + 5)'], '(3 × 2) × 5 = 3 × (2 × 5)', '30 = 30', 'Match the groups!'),
-     C('(7 + 3) + 8', ['7 + (3 + 8)'], ['6 + (4 + 8)', '(7 + 3) + 9'], '(7 + 3) + 8 = 7 + (3 + 8)', '18 = 18', 'One more matching group!')],
-    [C('3 × (4 + 2)', ['(3 × 4) + (3 × 2)'], ['(3 × 4) + 2', '(3 + 4) × (3 + 2)'], '3 × (4 + 2) = 12 + 6', '18 = 18', 'This card can split! Find its matching pair!'),
-     C('4 × (5 + 2)', ['(4 × 5) + (4 × 2)'], ['(4 × 5) + 2', '(4 + 5) × 2'], '4 × (5 + 2) = 20 + 8', '28 = 28', 'Find the matching split!'),
-     C('5 × (6 + 3)', ['(5 × 6) + (5 × 3)'], ['(5 × 6) + 3', '(5 × 6) × (5 × 3)'], '5 × (6 + 3) = 30 + 15', '45 = 45', 'Find the matching pair!'),
-     C('6 × (10 + 2)', ['(6 × 10) + (6 × 2)'], ['(6 × 10) + 2', '(6 + 10) × (6 + 2)'], '6 × (10 + 2) = 60 + 12', '72 = 72', 'One last split!')],
-    [C('8', ['+ 0', '× 1'], ['× 0'], '8 + 0 = 8 · 8 × 1 = 8', 'Still 8!', 'Keep 8 unchanged! Pick a card!', { sub: 'Keep it 8', target: 8 }),
-     C('15 + ___', ['0'], ['1', '5'], '15 + 0 = 15', 'Still 15!', "Don't change 15!", { sub: '= 15', target: 15 }),
-     C('12 × ___', ['1'], ['0', '12'], '12 × 1 = 12', 'Still 12!', 'Keep 12 the same!', { sub: '= 12', target: 12 }),
-     C('9 × 0 = ?', ['0'], ['9', '1'], '9 × 0 = 0', 'Anything × 0 is 0', 'Surprise! What happens with this card?')]
-  ];
-
-  /* a card with the SAME value that breaks the rule (not a swap / not a regroup): adding both sides is not enough to find the match */
-  function sameValueSwapDecoy(a, b, mul, op) {
-    const v = mul ? a * b : a + b, hi = mul ? 12 : 16, out = [];
-    for (let x = 2; x <= hi; x++) { const y = mul ? v / x : v - x; if (!Number.isInteger(y) || y < 2 || y > hi || x > y || x === y) continue; if ((x === a && y === b) || (x === b && y === a)) continue; out.push([x, y]); }
-    if (!out.length) return null; const [x, y] = shuffle(out)[0]; return Math.random() < .5 ? `${x} ${op} ${y}` : `${y} ${op} ${x}`;
-  }
-  function pickWrongs(cands, bad, n = 2) { const out = []; for (const c of shuffle(cands)) { const v = ev(c); if (v === null || v === bad || out.includes(c)) continue; out.push(c); if (out.length >= n) break; } return out; }
-  function genComm() { const mul = Math.random() < .35, m = mul ? 9 : 15; let a = ri(2, m), b = ri(2, m); while (b === a) b = ri(2, m); const op = mul ? '×' : '+', op2 = mul ? '+' : '×';
-    const centre = `${a} ${op} ${b}`, v = ev(centre);
-    const dec = sameValueSwapDecoy(a, b, mul, op), wr = pickWrongs([`${b} ${op} ${a + 1}`, `${a} ${op} ${b + 1}`, `${b} ${op2} ${a}`, `${a} ${op} ${b - 1}`, `${b + 1} ${op} ${a}`], v);
-    return C(centre, [`${b} ${op} ${a}`], dec ? [dec, wr[0]] : wr, `${centre} = ${b} ${op} ${a}`, `${v} = ${v}`, 'Find the card with the same numbers, switched!'); }
-  function genAssoc() { const mul = Math.random() < .3, m = mul ? 5 : 9; const a = ri(2, m), b = ri(2, m), c = ri(2, m); const op = mul ? '×' : '+', op2 = mul ? '+' : '×';
-    const centre = `(${a} ${op} ${b}) ${op} ${c}`, v = ev(centre);
-    const dec = !mul && b > 2 ? `${a + 1} ${op} (${b - 1} ${op} ${c})` : mul && b % 2 === 0 ? `${a * 2} ${op} (${b / 2} ${op} ${c})` : null, wr = pickWrongs([`(${a} ${op} ${b}) ${op} ${c + 1}`, `${a} ${op} (${b} ${op2} ${c})`, `${a} ${op} (${b + 1} ${op} ${c})`, `(${a} ${op2} ${b}) ${op} ${c}`], v);
-    return C(centre, [`${a} ${op} (${b} ${op} ${c})`], dec ? [dec, wr[0]] : wr, `${centre} = ${a} ${op} (${b} ${op} ${c})`, `${v} = ${v}`, 'Same numbers, new groups. Find the match!'); }
-  function genDist() { const a = ri(2, 9), b = ri(2, 10); let c = ri(1, 9); while (c === b) c = ri(1, 9); const centre = `${a} × (${b} + ${c})`, v = ev(centre);
-    return C(centre, [`(${a} × ${b}) + (${a} × ${c})`], pickWrongs([`(${a} × ${b}) + ${c}`, `(${a} + ${b}) × (${a} + ${c})`, `(${a} × ${b}) × (${a} × ${c})`, `${a} + (${b} × ${c})`], v), `${centre} = ${a * b} + ${a * c}`, `${v} = ${v}`, 'Find the correct split!'); }
-  function genIdent(forRobo) { const n = ri(3, 20), r = Math.random(), t = forRobo ? 0 : r < .3 ? 0 : r < .6 ? 1 : r < .9 ? 2 : 3;
-    if (t === 0) { const r = Math.random() < .5 ? '+ 0' : '× 1'; return C(`${n}`, [r], shuffle(['× 0', '+ 1', '× 2']).slice(0, 2), `${n} ${r} = ${n}`, `Still ${n}!`, `Keep ${n} unchanged! Pick a card!`, { sub: `Keep it ${n}`, target: n }); }
-    if (t === 1) return C(`${n} + ___`, ['0'], ['1', `${n}`], `${n} + 0 = ${n}`, `Still ${n}!`, `Don't change ${n}!`, { sub: `= ${n}`, target: n });
-    if (t === 2) return C(`${n} × ___`, ['1'], ['0', `${n}`], `${n} × 1 = ${n}`, `Still ${n}!`, `Keep ${n} the same!`, { sub: `= ${n}`, target: n });
-    return C(`${n} × 0 = ?`, ['0'], [`${n}`, '1'], `${n} × 0 = 0`, 'Anything × 0 is 0', 'What happens with this card?'); }
-  const GEN = [genComm, genAssoc, genDist, genIdent];
-
-  /* Scripted moments from the concept doc. Key = "round-matches". */
-  const LEARNER_EVENTS = {
-    '0-1': { give: 'skip', vo: 'You got a SKIP card! Play it whenever you like, and Robo misses a turn.' },
-    '1-2': { give: 'reverse', vo: 'A REVERSE card! With two players, that means you go again.' },
-    '1-3': { give: 'mystery', outcome: 'drop', vo: 'Whoa! A Mystery Card! Tap it to reveal!' },
-    '2-2': { give: 'swap', vo: 'A Swap Hands card! Trade hands with Robo when it helps you.' },
-    '3-3': { give: 'mystery', outcome: 'bonus', vo: 'Another Mystery Card! Tap it to reveal!' }
+  /* ---------- Part 1: game hook and how to play ---------- */
+  const HOOK = { vo: 'Whoa! Look at these colourful number cards! Each card brings a new challenge, and every flip brings a surprise!' };      // row 1
+  const SETUP = { vo: 'Match the cards, clear your hand, and watch out for the special cards!', ok: "Let's play!", idle: 'Tap PLAY to start!' }; // row 2
+  const HOW = {
+    match: { vo: 'Look at the centre card. Tap a card that follows the matching rule.', ost: 'CENTRE CARD → MATCH', ok: "That's a match!", idle: 'Tap the glowing card!',
+      centre: '2 + 3', right: '3 + 2', wrongs: ['2 + 4', '1 + 3'] },                                                                                    // row 3
+    turns: { vo: 'After you play, the next player gets a turn. Follow the arrow!', ost: 'YOUR TURN → COMPUTER → YOU', ok: 'Here we go!', idle: 'Tap NEXT!' }, // row 4
+    actions: { vo: 'Skip misses a turn. Reverse changes direction. Draw adds cards. Swap changes hands!', ost: 'SKIP • REVERSE • DRAW • SWAP',
+      ok: 'Cards can change the game!', idle: 'Tap a special card to see what it does!',
+      each: { skip: 'Skip misses a turn.', reverse: 'Reverse changes direction.', draw: 'Draw adds cards.', swap: 'Swap changes hands!' } },               // row 5
+    flip: { vo: 'Tap FLIP when it appears. A new number trick starts!', ost: 'FLIP = NEW RULE', ok: 'New rule unlocked!', idle: 'Tap FLIP!' },          // row 6
+    ready: { vo: 'The cards are shuffled, the players are set. Ready to play?' }
   };
-  const ROBO_EVENTS = { '0-3': 'skip', '1-2': 'reverse', '2-3': 'mystery', '3-2': 'skip' };
+
+  /* ---------- shared lines ---------- */
+  const WRONG1 = 'Check the numbers again.';
+  const STUCK = { vo: 'Oops! No match yet! Draw one card!', ost: 'DRAW 1 CARD!', ok: 'One more card! Try the match again!', idle: 'Tap the draw pile!' }; // rows 19, 36
+
+  /* step builders */
+  const M = (centre, right, wrongs, vo, ok, w2, idle, extra = {}) => ({ t: 'match', centre, right, wrongs, vo, ost: 'Find the matching card!', ok, w2, w3: `Find ${right}!`, idle, ...extra });
+  const CPU = (vo, ost, ok) => ({ t: 'cpu', vo, ost, ok });
+  const CPUACT = (act, vo, ost, ok) => ({ t: 'cpuAct', act, vo, ost, ok });
+  const GIVE = (act, vo, ost, ok, idle) => ({ t: 'give', act, vo, ost, ok, idle });
+
+  /* ---------- Part 2: Commutative (2 players) ---------- */
+  const PART2 = [
+    { t: 'teach', part: 0 },
+    M('4 + 6', '6 + 4', ['4 + 5', '7 + 2'], "Look! 4 + 6 makes 10. Switch the numbers, and it's still 10! Now find the matching card.", 'Great! Both make 10!', 'Switching 4 and 6 keeps the answer 10.', 'Find the card with 6 and 4!', { guided: true }), // 9
+    CPU("Computer's turn! Let's see its move!", "COMPUTER'S TURN", 'Match played!'),                                                                                  // 10
+    M('5 + 8', '8 + 5', ['5 + 7', '8 + 2'], 'Find the matching card!', 'Nice match! Both make 13!', '5 + 8 and 8 + 5 both make 13.', 'Look for the same numbers, switched!'), // 11
+    GIVE('skip', "A Skip card! Oh! The computer's turn is missed. Your turn again!", 'SKIP CARD!', 'SKIP! Computer misses its turn!', 'Tap the Skip card!'),           // 12
+    M('3 × 7', '7 × 3', ['3 × 6', '7 + 3'], 'Your turn again! Find the match!', 'Perfect! Both make 21!', '3 × 7 and 7 × 3 both make 21.', 'Find the same factors, switched!', { confetti: true }), // 13
+    CPU("Computer's turn!", 'COMPUTER PLAYS', 'Match played!'),                                                                                                       // 14
+    M('9 + 4', '4 + 9', ['9 + 5', '4 + 8'], 'Find the next match!', 'Great! Both make 13!', '9 + 4 and 4 + 9 both make 13.', 'Look for the switched numbers!'),      // 15
+    CPUACT('reverse', "REVERSE! Oh! Your turn is missed. Computer's turn again!", 'REVERSE!', 'Computer gets another turn!'),                                            // 16
+    CPU('Computer plays again!', 'COMPUTER PLAYS', 'Your turn!'),                                                                                                     // 17
+    M('6 × 5', '5 × 6', ['6 × 4', '5 + 6'], 'Find the matching card!', 'Yes! Both make 30!', '6 × 5 and 5 × 6 both make 30.', 'Find the matching multiplication!'),  // 18
+    CPU("Computer's turn!", 'COMPUTER PLAYS', 'Match played!'),                                                                                                       // 20
+    M('12 + 7', '7 + 12', ['12 + 8', '7 + 11'], 'Find the matching card!', 'Great match! Both make 19!', '12 + 7 and 7 + 12 both make 19.', 'Look for 7 and 12!'),    // 21
+    GIVE('reverse', 'A Reverse card! Play it!', 'REVERSE!', 'Nice reverse! Your turn again!', 'Tap the Reverse card!'),                                               // 22
+    M('8 × 4', '4 × 8', ['8 × 5', '4 + 8'], 'Your turn again! Find the match!', 'Perfect! Both make 32!', '8 × 4 and 4 × 8 both make 32.', 'Find the matching factors!', { ost: 'YOUR TURN' }), // 23
+    CPUACT('skip', 'Oh no! Computer played Skip! Your turn is missed!', "YOU'RE SKIPPED!", 'Computer plays again!'),                                                    // 24
+    CPU('Computer plays again! Watch out!', 'COMPUTER PLAYS AGAIN', 'Your turn now!'),                                                                                // 25
+    M('15 + 6', '6 + 15', ['15 + 7', '6 + 14'], 'Find the matching card!', 'Awesome! Both make 21!', '15 + 6 and 6 + 15 both make 21.', 'Find the final matching card!', { confetti: true }), // 26
+    { t: 'flip', vo: 'FLIP! New cards, new trick!', ost: 'FLIP THE CARDS!', ok: 'New rule unlocked!', idle: 'Tap the FLIP card!' }                                      // 27
+  ];
+
+  /* ---------- Part 3: Associative (2 players) ---------- */
+  const EXPLAIN = {                                                                                                                                                    // 20 (Part 3)
+    lines: ['Look! First we add 2 and 3, then 5. We get 10!', 'Now group 3 and 5 first. Still 10!', 'Changing the groups keeps the answer the same. This is the Associative Property.', 'It works for multiplication too!'],
+    a: '(2 + 3) + 5', b: '2 + (3 + 5)', val: 10, ma: '(2 × 3) × 4', mb: '2 × (3 × 4)', mval: 24,
+    ok: "Let's match the groups!", idle: 'Tap GOT IT to play!'
+  };
+  const PART3 = [
+    { t: 'teach', part: 1 },
+    { t: 'explain' },
+    M('(2 + 3) + 5', '2 + (3 + 5)', ['(2 + 4) + 5', '3 + (2 + 4)'], 'Find the matching card!', 'Nice match! Both equal 10!', 'Changing the group from (2 + 3) to (3 + 5) keeps the answer 10.', 'Find the card with the same numbers in a different group!', { guided: true }), // 21
+    CPU("Computer's turn! Let's see its move!", "COMPUTER'S TURN", 'Match played!'),                                                                                   // 22
+    M('(4 + 6) + 2', '4 + (6 + 2)', ['(4 + 5) + 2', '6 + (4 + 3)'], 'Find the matching card!', 'Nice match! Both equal 12!', 'Grouping 4 and 6 or grouping 6 and 2 gives the same total, 12.', 'Look for the same numbers in a new group!'), // 23
+    CPUACT('reverse', 'REVERSE! Oh! Your turn is missed. Computer plays again!', 'REVERSE! COMPUTER PLAYS AGAIN', 'Computer gets another turn!'),                       // 24
+    CPU('Computer plays again! Your turn is next!', 'COMPUTER PLAYS', 'Your turn!'),                                                                                  // 25
+    M('(3 × 2) × 5', '3 × (2 × 5)', ['(3 × 4) × 5', '2 × (3 × 6)'], 'Find the matching card!', 'Perfect match! Both equal 30!', 'Multiplying 3 and 2 first or 2 and 5 first gives the same answer, 30.', 'Find the matching group!', { confetti: true }), // 26
+    GIVE('reverse', 'A Reverse card! Play it!', 'REVERSE!', 'Nice reverse! Your turn again!', 'Tap the Reverse card!'),                                               // 27
+    M('(7 + 3) + 8', '7 + (3 + 8)', ['7 + (4 + 8)', '3 + (7 + 9)'], 'Find the matching card!', 'Great! Both equal 18!', 'Adding 7 and 3 first or 3 and 8 first gives the same total, 18.', 'Look for the same three numbers!'), // 28
+    CPU("Computer's turn!", 'COMPUTER PLAYS', 'Match played!'),                                                                                                       // 29
+    M('(5 + 5) + 9', '5 + (5 + 9)', ['(5 + 6) + 9', '9 + (5 + 6)'], 'Find the matching card!', 'Nice match! Both equal 19!', 'Grouping the first two 5s or grouping 5 and 9 keeps the total 19.', 'Find the card with different brackets!'), // 30
+    GIVE('mystery', 'A Mystery Card! Flip it!', 'MYSTERY CARD!', 'Lucky you! Drop one extra card!', 'Tap the Mystery Card!'),                                         // 31
+    M('(4 × 5) × 2', '4 × (5 × 2)', ['(4 × 6) × 2', '5 × (4 × 3)'], 'Find the matching card!', 'Perfect! Both equal 40!', 'Multiplying 4 and 5 first or 5 and 2 first gives the same answer, 40.', 'Look for the matching multiplication group!'), // 32
+    CPUACT('skip', 'Oh no! Computer played Skip! Your turn is missed!', "YOU'RE SKIPPED!", 'Computer plays again!'),                                                    // 33
+    CPU('Computer plays again! Watch out!', 'COMPUTER PLAYS', 'Your turn now!'),                                                                                      // 34
+    M('(6 + 4) + 7', '6 + (4 + 7)', ['(6 + 5) + 7', '4 + (6 + 8)'], 'Find the matching card!', 'Great match! Both equal 17!', 'Adding 6 and 4 first or 4 and 7 first gives the same total, 17.', 'Find the matching group!'), // 35
+    CPU("Computer's turn!", 'COMPUTER PLAYS', 'Match played!'),                                                                                                       // 37
+    M('(2 × 6) × 5', '2 × (6 × 5)', ['(2 × 5) × 6', '2 × (6 × 4)'], 'Find the matching card!', 'Awesome! Both equal 60!', 'Multiplying 2 and 6 first or 6 and 5 first gives the same answer, 60.', 'Find the final matching group!', { confetti: true }), // 38
+    { t: 'complete', vo: 'Amazing! You changed the groups, but the answers stayed the same!', ost: 'ASSOCIATIVE COMPLETE!', ok: 'All matches cleared!' }               // 39
+  ];
 
   const ACTIONS = {
     skip: { img: 'cd-skip', label: 'SKIP' }, reverse: { img: 'cd-reverse', label: 'REVERSE' },
-    swap: { img: 'cd-swap-hands', label: 'SWAP HANDS' }, mystery: { img: 'cd-mystery', label: 'MYSTERY' }
+    swap: { img: 'cd-swap-hands', label: 'SWAP' }, mystery: { img: 'cd-mystery', label: 'MYSTERY' },
+    draw: { img: 'cd-mystery-reveal-distributive', label: 'DRAW', face: '+2' }
   };
 
-  /* Character lines: a little cheeky, never mean. */
-  const LINES = {
-    praise: ['Nice match! Same answer!', 'Yes! Same answer!', 'Perfect match!', 'You got it!', 'Brilliant!'],
-    roboPlay: ['Beep boop. My move!', 'Calculating… done!', 'Robo plays a card!', 'Easy peasy, beep!'],
-    roboTaunt: ['Ha-ha! Beep!', 'Bzzt! Sorry, not sorry!', 'Robo is on fire! Well… warm.'],
-    roboOuch: ['Bzzzt… my circuits!', 'Error 404: turn not found!', 'Whoa, everything is spinning!'],
-    roboDraw: ['Hmm, no match. Robo draws.', 'Beep… I need another card.'],
-    idle: ['Need a hand? Look at the numbers on the middle card.', 'Take your time. Which card gives the same answer?']
-  };
+  /* filler faces for the learner's other cards (shown when the hand is turned face up: Mystery drop, FLIP) */
+  const FILLER = [
+    ['3 + 9', '7 × 2', '8 + 6', '5 × 4', '2 + 11', '9 × 3'],
+    ['(1 + 4) + 6', '(2 × 3) × 3', '8 + (2 + 5)', '(3 + 3) + 4', '5 × (2 × 2)', '(9 + 1) + 2']
+  ];
 
-  window.NF_CONTENT = { PHASES, SCRIPT, GEN, LEARNER_EVENTS, ROBO_EVENTS, ACTIONS, LINES, util: { ri, shuffle, ev } };
+  window.NF_CONTENT = { START_CARDS, PARTS, HOOK, SETUP, HOW, WRONG1, STUCK, PART2, PART3, EXPLAIN, ACTIONS, FILLER, util: { shuffle, ev } };
 })();
