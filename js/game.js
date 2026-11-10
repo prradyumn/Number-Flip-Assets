@@ -3,7 +3,7 @@
    Part 4 Distributive → FLIP → Part 5 Identity → Identity Complete → Part 6 FINAL FLIP → Victory. */
 (() => {
 'use strict';
-const { START_CARDS, PARTS, HOOK, SETUP, HOW, WRONG1, STUCK, PLAY, EXPLAIN, ACTIONS, FILLER, util: { shuffle, ev } } = window.NF_CONTENT;
+const { START_CARDS, PARTS, HOOK, SETUP, HOW, WRONG1, STUCK, NOMATCH, PLAY, EXPLAIN, ACTIONS, FILLER, util: { shuffle, ev } } = window.NF_CONTENT;
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const A = p => `assets/${p}.webp`;
@@ -11,6 +11,11 @@ const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 const MATCHES = PLAY.map(s => s.filter(x => x.t === 'match').length);
 const NP = PLAY.length;
+/* cards dealt when a part starts: the sheet's deal where it names one, otherwise one card per play plus spares
+   (special cards arrive on top of the hand, so only matches and Mystery drops use up the learner's cards) */
+const DEALS = PLAY.map((steps, p) => PARTS[p].deal || [
+  1 + steps.filter(s => s.t === 'match' || (s.t === 'give' && s.act === 'mystery' && !s.bonus)).length,
+  (PARTS[p].spare ?? 2) + steps.filter(s => s.t === 'cpu' || s.t === 'cpuAct').length + steps.filter(s => s.t === 'cpuAct' && s.act === 'mystery').length]);
 
 /* ---------- stage fit ---------- */
 const stage = $('#stage');
@@ -126,6 +131,8 @@ const L = {
   fan: { x: 1410, y: 316, w: 80, h: 114 },
   big: { x: 820, y: 250, w: 280, h: 398 }
 };
+/* the computer's three cards during its turn (matches #cpuRow in style.css) */
+const CPUROW = { x: 1352, y: 566, w: 130, h: 185, gap: 14 };
 const rectOf = el => { let x = 0, y = 0, e = el; while (e && e !== stage) { x += e.offsetLeft; y += e.offsetTop; e = e.offsetParent; } return { x, y, w: el.offsetWidth, h: el.offsetHeight }; };
 const frontImg = p => PARTS[p].card;
 const faceText = t => t.length <= 12 ? t : t.includes(') + (') ? t.replace(') + (', ') +<br>(') : t.includes(' = ') ? t.replace(/ = (?=[^=]*$)/, '<br>= ') : t;
@@ -254,6 +261,12 @@ function badge(kind, cx, cy, size = 150, hold = .7) {
   im.style.cssText = `left:${cx - size / 2}px;top:${cy - size / 2}px;width:${size}px;height:${size}px`; $('#fxLayer').appendChild(im);
   gsap.timeline().fromTo(im, { scale: 0, rotation: -25 }, { scale: 1, rotation: 0, duration: D(.35), ease: 'back.out(3)' }).to(im, { autoAlpha: 0, y: -24, duration: D(.3), delay: hold, onComplete: () => im.remove() });
 }
+/* a lightbulb pops over the computer when it finds the match */
+function bulb() {
+  const w = rectOf($('#roboWrap')), im = document.createElement('img'); im.className = 'fxicon'; im.src = A('feedback/hint-lightbulb-glowing'); im.alt = '';
+  im.style.cssText = `left:${w.x + w.w / 2 - 55}px;top:${w.y - 70}px;width:110px;height:110px`; $('#fxLayer').appendChild(im);
+  gsap.timeline().fromTo(im, { scale: 0, y: 20 }, { scale: 1, y: 0, duration: D(.35), ease: 'back.out(3)' }).to(im, { autoAlpha: 0, y: -20, duration: D(.3), delay: .8, onComplete: () => im.remove() });
+}
 /* a pulsing glow behind a rect; returns a function that removes it */
 function glowAt(r, scale = 1.5) {
   const im = document.createElement('img'); im.className = 'fx hintglow'; im.src = A('fx/fx-hint-glow'); im.alt = '';
@@ -365,7 +378,7 @@ function renderHand({ deal = false } = {}) {
   const v = S.view, faces = v === 'match' ? S.opts.map(o => o.text) : (v === 'drop' || v === 'show') ? S.drop : null;
   const live = v === 'match' || v === 'drop', mine = S.turn === 'learner';
   const n = faces ? faces.length : Math.min(3, S.hand);
-  const W = L.hand.w, total = n ? n * W + (n - 1) * L.hand.gap : 0, x0 = L.hand.cx - total / 2;
+  const W = L.hand.w, total = n ? n * W + (n - 1) * L.hand.gap : 0, x0 = Math.max(470, L.hand.cx - total / 2);
   L.stack.x = Math.max(x0 + total + 28, 640);
   const cards = [];
   for (let i = 0; i < n; i++) {
@@ -496,7 +509,7 @@ async function setup() {
   gsap.from('#flippyWrap', { x: -360, duration: D(.6), ease: 'back.out(1.4)' });
   gsap.from('#roboWrap', { x: 360, duration: D(.6), ease: 'back.out(1.4)' });
   try {
-    say(SETUP.vo);
+    say(SETUP.vo); ost(SETUP.ost);
     await wait(500);
     /* cards are dealt to each player; the computer's cards stay face down */
     for (let i = 0; i < START_CARDS; i++) {
@@ -508,7 +521,7 @@ async function setup() {
     await wait(300); S.comp = START_CARDS; renderFan();
     showGo('PLAY'); $('#setupOpts').hidden = false; syncOpts();
     idle(SETUP.idle, () => pulse($('#btnGo'), 2, 1.15));
-    await waitFor('go'); idleOff(); hideGo(); $('#setupOpts').hidden = true;
+    await waitFor('go'); idleOff(); hideGo(); $('#setupOpts').hidden = true; ost('');
     await talk(SETUP.ok);
     await howTo();
   } catch (e) { if (e !== STALE) console.error(e); }
@@ -516,6 +529,28 @@ async function setup() {
 
 async function howTo() {
   const g = GID;
+  /* How to Play 3 (Sheet5 puts it first): the special cards float over the deck, FLIP included; tap each to preview */
+  {
+    const H = HOW.actions, types = ['skip', 'reverse', 'draw', 'swap', 'flip'], seen = new Set(), x0 = 960 - (types.length * 195 - 25) / 2;
+    S.centre = null; S.played = null; renderCentre(); eqClear(); ost(H.ost); say(H.vo);
+    const row = document.createElement('div'); row.id = 'preview'; $('#world').appendChild(row);
+    row.innerHTML = types.map((t, i) => `<button class="pv" data-t="${t}" style="left:${x0 + i * 195}px" aria-label="Preview ${ACTIONS[t].label}"><span class="lift">${actInner(t, 170)}</span><span class="act-lbl">${ACTIONS[t].label}</span><img class="tick" src="${A('ui/ui-icon-check')}" alt=""></button>`).join('');
+    const pv = [...row.children];
+    gsap.from(pv, { y: 200, autoAlpha: 0, stagger: .1, duration: D(.45), ease: 'back.out(1.6)' });
+    pv.forEach((b, i) => { gsap.to(b.querySelector('.lift'), { y: -10, duration: 1 + i * .1, yoyo: true, repeat: -1, ease: 'sine.inOut' }); b.onclick = () => tap({ kind: 'prev', t: b.dataset.t, el: b }); });
+    const nudge = () => pv.filter(b => !seen.has(b.dataset.t)).forEach((b, i) => gsap.delayedCall(i * .45, () => pulse(b, 1, 1.12)));
+    idle(H.idle, nudge);
+    while (seen.size < types.length) {
+      const e = await waitFor('prev'); idleOff(); sfx('pop'); bounce(e.el);
+      say(H.each[e.t]);
+      await preview(e.t);
+      seen.add(e.t); gsap.to(e.el.querySelector('.tick'), { autoAlpha: 1, scale: 1, duration: D(.3), ease: 'back.out(3)' });
+      idle(H.idle, nudge);
+    }
+    idleOff(); say(H.ok); pose('flippy', 'cheer', 1600);
+    gsap.to(pv, { keyframes: { y: [-40, 0, -14, 0] }, stagger: .08, duration: .7 }); await wait(2200, true);
+    await gsap.to(pv, { y: 220, autoAlpha: 0, stagger: .06, duration: D(.35), ease: 'power2.in' }); row.remove(); guard(g);
+  }
   /* How to Play 1: centre card + three learner options, a glowing sample card */
   {
     const H = HOW.match; await setTurn('learner'); ost(H.ost);
@@ -530,52 +565,6 @@ async function howTo() {
     S.hand--; S.played = { text: H.right, p: 0 }; S.view = 'wait'; S.glow = []; renderCentre(); renderHand();
     badge('correct', L.played.x + L.played.w - 20, L.played.y + 30, 130); sparkles(L.played.x + 105, L.played.y + 140, 6, 110);
     pose('flippy', 'cheer', 1600); await talk(H.ok, true);
-  }
-  /* How to Play 2: the turn order arrow */
-  {
-    const H = HOW.turns; ost(H.ost); say(H.vo);
-    showGo('NEXT', 'side'); idle(H.idle, () => pulse($('#btnGo'), 2, 1.15));
-    await waitFor('go'); idleOff(); hideGo();
-    say(H.ok); await setTurn('computer'); await wait(500); await setTurn('learner');
-    fx('fx-star-burst', ptrAt('learner').left + 28, ptrAt('learner').top + 28, 160, { dur: .6 }); await wait(1200, true);
-  }
-  /* How to Play 3: special cards float over the deck; tap each to preview */
-  {
-    const H = HOW.actions, types = ['skip', 'reverse', 'draw', 'swap'], seen = new Set();
-    S.centre = null; S.played = null; renderCentre(); eqClear(); ost(H.ost); say(H.vo);
-    const row = document.createElement('div'); row.id = 'preview'; $('#world').appendChild(row);
-    row.innerHTML = types.map((t, i) => `<button class="pv" data-t="${t}" style="left:${560 + i * 205}px" aria-label="Preview ${ACTIONS[t].label}"><span class="lift">${actInner(t, 170)}</span><span class="act-lbl">${ACTIONS[t].label}</span><img class="tick" src="${A('ui/ui-icon-check')}" alt=""></button>`).join('');
-    const pv = [...row.children];
-    gsap.from(pv, { y: 200, autoAlpha: 0, stagger: .1, duration: D(.45), ease: 'back.out(1.6)' });
-    pv.forEach((b, i) => { gsap.to(b.querySelector('.lift'), { y: -10, duration: 1 + i * .1, yoyo: true, repeat: -1, ease: 'sine.inOut' }); b.onclick = () => tap({ kind: 'prev', t: b.dataset.t, el: b }); });
-    idle(H.idle, () => pv.filter(b => !seen.has(b.dataset.t)).forEach((b, i) => gsap.delayedCall(i * .45, () => pulse(b, 1, 1.12))));
-    while (seen.size < types.length) {
-      const e = await waitFor('prev'); idleOff(); sfx('pop'); bounce(e.el);
-      say(H.each[e.t]);
-      await preview(e.t);
-      seen.add(e.t); gsap.to(e.el.querySelector('.tick'), { autoAlpha: 1, scale: 1, duration: D(.3), ease: 'back.out(3)' });
-      idle(H.idle, () => pv.filter(b => !seen.has(b.dataset.t)).forEach((b, i) => gsap.delayedCall(i * .45, () => pulse(b, 1, 1.12))));
-    }
-    idleOff(); say(H.ok); pose('flippy', 'cheer', 1600);
-    gsap.to(pv, { keyframes: { y: [-40, 0, -14, 0] }, stagger: .08, duration: .7 }); await wait(2200, true);
-    await gsap.to(pv, { y: 220, autoAlpha: 0, stagger: .06, duration: D(.35), ease: 'power2.in' }); row.remove(); guard(g);
-  }
-  /* How to Play 4: the FLIP preview card */
-  {
-    const H = HOW.flip; ost(H.ost); say(H.vo);
-    const c = document.createElement('button'); c.id = 'flipPreview'; c.className = 'card tappable'; c.setAttribute('aria-label', 'Tap FLIP'); c.innerHTML = cardInner('cd-flip', null, 230);
-    place(c, { x: 845, y: 452, w: 230, h: 327 }); $('#world').appendChild(c); c.onclick = () => tap({ kind: 'flipprev' });
-    gsap.from(c, { scale: 0, rotation: -30, duration: D(.5), ease: 'back.out(2)' });
-    const wob = gsap.to(c, { rotationY: 25, duration: 1.1, yoyo: true, repeat: -1, ease: 'sine.inOut' });
-    S.drop = FILLER[0].slice(0, 3); S.view = 'show'; renderHand({ deal: true });
-    idle(H.idle, () => pulse(c, 2, 1.1));
-    await waitFor('flipprev'); idleOff(); wob.kill();
-    sfx('whoosh'); sheet('level-up-burst', 960, 615, 700); sparkles(960, 615, 12, 220);
-    await allFlip(() => { S.drop = FILLER[1].slice(0, 3); renderHand(); }, c);
-    say(H.ok); pose('flippy', 'cheer', 1600); await wait(1800, true);
-    /* return to start state */
-    await allFlip(() => { S.view = 'wait'; renderHand(); }, c);
-    await gsap.to(c, { scale: 0, autoAlpha: 0, duration: D(.3) }); c.remove(); guard(g);
   }
   /* Ready? */
   ost(''); say(HOW.ready.vo);
@@ -607,6 +596,12 @@ async function preview(t) {
     /* Draw adds cards */
     for (let k = 0; k < 2; k++) { sfx('deal'); await fly(L.pile, L.stack, cardInner('cd-back', null, L.pile.w), { dur: .4, rot: 0 }); S.hand++; renderHand(); }
     pulse($('#cntYou'), 1, 1.12); await wait(700);
+  } else if (t === 'flip') {
+    /* FLIP: every card turns over to a new number trick, then back */
+    S.drop = FILLER[0].slice(0, 3); S.view = 'show'; renderHand(); await wait(400);
+    sfx('whoosh'); sheet('level-up-burst', 960, 615, 700); sparkles(960, 615, 12, 220);
+    await allFlip(() => { S.drop = FILLER[1].slice(0, 3); renderHand(); }); await wait(1300);
+    await allFlip(() => { S.view = 'wait'; S.drop = []; renderHand(); });
   } else {
     /* Swap exchanges hands */
     const fan = rectOf($('#roboFan')), hand = { x: 780, y: 800, w: 136, h: 194 }, f = [];
@@ -678,12 +673,19 @@ const STEP = {
   /* a matching challenge: three cards (two correct in the Identity tutorial; one card at the very end) */
   async match(st) {
     const g = GID, P = S.part, rights = st.rights || [st.right], v = st.v ?? ev(st.centre);
-    await setTurn('learner'); eqClear(); dimHand(false);
-    if (!S.centre || S.centre.text !== st.centre) { S.centre = { text: st.centre, p: P }; S.played = null; renderCentre(true); await wait(350); }
-    S.opts = shuffle([...rights.map(t => ({ text: t, correct: true })), ...st.wrongs.map(t => ({ text: t, correct: false }))]);
-    const ci = S.opts.map((o, i) => o.correct ? i : -1).filter(i => i >= 0);
+    S.view = 'wait'; renderHand(); await setTurn('learner'); eqClear(); dimHand(false);
+    if (!S.centre || S.centre.text !== st.centre) await newCentre(st.centre);
+    S.opts = shuffle([...(st.nomatch ? [] : rights.map(t => ({ text: t, correct: true }))), ...st.wrongs.map(t => ({ text: t, correct: false }))]);
+    let ci = S.opts.map((o, i) => o.correct ? i : -1).filter(i => i >= 0);
     S.view = 'match'; S.glow = st.guided ? ci : []; renderHand({ deal: true });
     ost(st.ost); say(st.vo);
+    if (st.nomatch) {
+      /* Sheet5 row 21: none of the three cards matches. The learner looks (a tapped card just shakes), then row 19: draw one card */
+      const e0 = await tapOrWait('opt', 4500);
+      if (e0) { sfx('bad'); gsap.fromTo(e0.el, { x: 0 }, { keyframes: { x: [-16, 16, -12, 10, -6, 0] }, duration: D(.45), ease: 'none' }); await wait(500); }
+      await noMatchDraw(rights[0]); guard(g);
+      ci = [S.opts.length - 1]; S.glow = ci; renderHand(); ost(st.ost);
+    }
     const pulseRight = () => { ci.forEach(i => pulse($(`#hand [data-opt="${i}"]`), 2, 1.07)); if (st.last) pulse($('#centreCard'), 2, 1.05); };
     idle(st.idle, pulseRight);
     let wrong = 0, stuck = false, e;
@@ -721,24 +723,57 @@ const STEP = {
     await wait(1900, true);
   },
 
-  /* the computer plays a number card onto the centre pile: it becomes the learner's next card to match */
-  async cpu(st, steps, i) {
-    const g = GID, next = steps.slice(i + 1).find(s => s.t === 'match'), card = next ? next.centre : '2 + 2';
-    S.view = 'wait'; renderHand(); await setTurn('computer'); dimFan(false);
-    ost(st.ost); say(st.vo); pose('robo', 'think'); await wait(1500, true);
-    pose('robo', 'play', 1400);
-    await handThrow('robo', cardInner(frontImg(S.part), card, 150), L.centre);
-    S.comp = Math.max(0, S.comp - 1); S.centre = { text: card, p: S.part }; S.played = null; eqClear(); renderCentre(); renderFan();
-    sparkles(L.centre.x + 105, L.centre.y + 150, 6, 110);
-    await talk(st.ok); guard(g);
+  /* the computer's own turn: a centre card is dealt, the computer's three cards turn face up, it checks them one by one,
+     puts back the ones that do not match and plays the match; the equation panel shows its working (Sheet5 rows 10, 15, 18, 26) */
+  async cpu(st) {
+    const g = GID, P = S.part, v = st.v ?? ev(st.centre), row = $('#cpuRow');
+    S.view = 'wait'; renderHand(); eqClear(); dimHand(false); dimFan(false);
+    await setTurn('computer'); ost(st.ost); say(st.vo); pose('robo', 'think');
+    await newCentre(st.centre);
+    const opts = shuffle([{ text: st.right, correct: true }, ...st.wrongs.map(t => ({ text: t, correct: false }))]);
+    if (opts[0].correct) [opts[0], opts[1]] = [opts[1], opts[0]];
+    const W = CPUROW.w, H = CPUROW.h;
+    row.innerHTML = `<p class="lbl">COMPUTER'S CARDS</p>` + opts.map((o, k) => `<div class="card" style="left:${k * (W + CPUROW.gap)}px;width:${W}px;height:${H}px">${cardInner(frontImg(P), o.text, W)}</div>`).join('');
+    const cards = [...row.querySelectorAll('.card')], lbl = row.querySelector('.lbl'), fan = rectOf($('#roboFan'));
+    sfx('deal');
+    await gsap.timeline()
+      .from(cards, { x: k => fan.x + 70 - CPUROW.x - k * (W + CPUROW.gap), y: fan.y - CPUROW.y, scale: .6, rotationY: 90, autoAlpha: 0, duration: D(.45), stagger: .1, ease: 'back.out(1.4)' })
+      .from(lbl, { autoAlpha: 0, duration: D(.25) }, '<');
+    guard(g);
+    if (st.vo2) say(st.vo2);
+    await wait(700);
+    let pick = 0;
+    for (let k = 0; k < cards.length; k++) {
+      const c = cards[k]; sfx('flip');
+      c.classList.add('look'); await gsap.to(c, { y: -16, scale: 1.06, duration: D(.25), ease: 'power2.out' }); await wait(700);
+      if (opts[k].correct) { pick = k; break; }
+      /* not a match: it goes back down */
+      c.classList.remove('look');
+      gsap.to(c, { keyframes: { x: [-8, 8, -5, 0] }, duration: D(.3) });
+      await gsap.to(c, { y: 0, scale: 1, autoAlpha: .45, duration: D(.3) }); guard(g);
+    }
+    /* found it: a lightbulb over the computer, then it plays the card */
+    bulb(); pose('robo', 'play', 1600); sfx('good');
+    const c = cards[pick], r = rectOf(c); r.y -= 16; c.style.visibility = 'hidden';
+    gsap.to(cards.filter(x => x !== c), { x: '+=40', y: fan.y - CPUROW.y, scale: .5, autoAlpha: 0, duration: D(.4), stagger: .05, ease: 'power2.in' });
+    gsap.to(lbl, { autoAlpha: 0, duration: D(.2) });
+    await fly(r, L.played, cardInner(frontImg(P), opts[pick].text, r.w), { rot: -6, trail: true });
+    row.innerHTML = '';
+    S.comp = Math.max(1, S.comp - 1); S.played = { text: opts[pick].text, p: P }; renderFan(); renderCentre();
+    gsap.fromTo('#playedCard', { scale: 1.12 }, { scale: 1, duration: D(.3), ease: 'back.out(3)' });
+    badge('correct', L.played.x + L.played.w - 20, L.played.y + 30, 110); sparkles(L.played.x + 105, L.played.y + 150, 6, 110);
+    say(st.ok, true); pose('flippy', 'cheer', 1400);
+    await eqShow(eqOf(st, opts[pick].text)); if (st.badge !== false) valueBadges(v);
+    await wait(1800, true);
   },
 
   /* the computer plays Reverse or Skip (the learner's turn is missed) or a Mystery card */
   async cpuAct(st) {
     const g = GID; S.view = 'wait'; renderHand(); await setTurn('computer'); eqClear();
+    if (st.pre) { ost(st.preOst); say(st.pre); pose('robo', 'think'); await wait(1500, true); }
     ost(st.ost); pose('robo', 'play', 1400);
     await handThrow('robo', actInner(st.act, 150), L.played);
-    S.comp = Math.max(0, S.comp - 1); S.played = { act: st.act }; renderCentre(); renderFan();
+    S.comp = Math.max(1, S.comp - 1); S.played = { act: st.act }; renderCentre(); renderFan();
     pose('robo', 'laugh', 2600); say(st.vo);
     if (st.act === 'mystery') {
       /* Part 4 row 41: the Mystery card flips; it shows DROP 1 and the computer drops one extra card */
@@ -746,7 +781,7 @@ const STEP = {
       sparkles(L.played.x + 105, L.played.y + 150, 10, 160); sfx('good');
       const fan = rectOf($('#roboFan'));
       await fly({ x: fan.x + 70, y: fan.y + 10, w: 80, h: 114 }, L.pile, cardInner('cd-back', null, 80), { dur: .55, rot: -20 });
-      S.comp = Math.max(0, S.comp - 1); renderFan(); pulse($('#cntCpu'), 1, 1.12); await wait(1200, true);
+      S.comp = Math.max(1, S.comp - 1); renderFan(); pulse($('#cntCpu'), 1, 1.12); await wait(1200, true);
       return;
     }
     const blue = '#5AB0FF', red = '#FF5A6E';
@@ -844,7 +879,7 @@ const STEP = {
     sfx('magic'); sheet('level-up-burst', 960, 615, 900); fx('fx-star-burst', 960, 615, 800, { dur: 1 }); sparkles(960, 615, 16, 300); shake(8);
     S.drop = FILLER[from].slice(0, 3); S.view = 'show'; renderHand(); await wait(300);
     await allFlip(() => {
-      S.part = to; [S.hand, S.comp] = PARTS[to].deal; S.drop = FILLER[to].slice(0, 3); S.centre = null;
+      S.part = to; [S.hand, S.comp] = DEALS[to]; S.drop = FILLER[to].slice(0, 3); S.centre = null;
       renderHand(); renderFan(); renderCentre(); renderProgress(); updateTint();
     });
     say(st.ok, true); pose('flippy', 'cheer', 1800); await stamp('FLIP!', '#FFC83D', .5); await wait(1200, true);
@@ -888,7 +923,7 @@ const STEP = {
 
   /* Part 6 row 54: the computer is close to winning */
   async warn(st) {
-    const g = GID; S.view = 'wait'; renderHand(); eqClear(); S.centre = null; S.played = null; renderCentre();
+    const g = GID; S.view = 'wait'; renderHand(); eqClear();
     await setTurn('computer'); dimFan(false);
     S.comp = st.comp; renderFan(); ost(st.ost); say(st.vo); pose('robo', 'laugh', 2600);
     gsap.fromTo('#roboFan img', { y: 0 }, { keyframes: { y: [-30, 0, -14, 0] }, stagger: .12, duration: .8 });
@@ -900,7 +935,7 @@ const STEP = {
   /* Part 6 row 55: one card left; the learner must call FINAL FLIP before the last card unlocks */
   async finalCall(st) {
     const g = GID; await setTurn('learner'); eqClear(); dimHand(false); dimFan(false);
-    S.hand = 1; S.centre = { text: st.centre, p: S.part }; S.played = null; renderCentre(true);
+    S.hand = 1; S.view = 'wait'; renderHand(); await newCentre(st.centre);
     S.opts = [{ text: st.card, correct: true }]; S.view = 'match'; S.glow = []; renderHand({ deal: true });
     $('#hand').classList.add('callfirst');
     ost(st.ost); pose('flippy', 'point', 2400); say(st.vo, true);
@@ -1050,6 +1085,39 @@ const EXPLAINERS = {
   }
 };
 
+/* resolve with the next tap of a kind, or with null after ms */
+function tapOrWait(kind, ms) {
+  const g = GID;
+  return new Promise((res, rej) => {
+    let done = false;
+    const t = gsap.delayedCall(ms / 1000, () => { done = true; tapRes = null; g === GID ? res(null) : rej(STALE); });
+    waitFor(kind).then(e => { if (!done) { t.kill(); res(e); } }, e => { if (!done) { t.kill(); rej(e); } });
+  });
+}
+/* every turn gets its own centre card: last turn's cards slide away, a card is dealt from the draw pile and flips face up */
+async function newCentre(text) {
+  const g = GID, old = $$('#centre .card');
+  if (old.length) { await gsap.to(old, { autoAlpha: 0, scale: .85, y: -30, duration: D(.25), stagger: .05, ease: 'power2.in' }); guard(g); }
+  S.centre = null; S.played = null; renderCentre();
+  sfx('deal'); await fly(L.pile, L.centre, cardInner('cd-back', null, L.pile.w), { dur: .4, rot: 0 });
+  S.centre = { text, p: S.part }; renderCentre(true); await wait(350);
+}
+/* Sheet5 row 19: no card matches. The draw pile glows; the drawn card joins the options face up */
+async function noMatchDraw(text) {
+  const g = GID, pile = $('#pile'), hand = $('#hand');
+  hand.classList.add('locked'); ost(NOMATCH.ost); pose('flippy', 'oops', 2000); say(NOMATCH.vo, true);
+  pile.classList.add('live'); const gk = glowAt(L.pile, 1.5);
+  idle(NOMATCH.idle, () => pulse(pile, 2, 1.08));
+  try { await waitFor('pile'); } finally { idleOff(); gk(); pile.classList.remove('live'); }
+  S.opts.push({ text, correct: true }); S.hand++; S.stats.drawn++;
+  const n = S.opts.length, W = L.hand.w, x0 = Math.max(470, L.hand.cx - (n * W + (n - 1) * L.hand.gap) / 2);
+  sfx('deal'); await fly(L.pile, { x: x0 + (n - 1) * (W + L.hand.gap), y: L.hand.y, w: W, h: L.hand.h }, cardInner('cd-back', null, L.pile.w), { dur: .5, rot: 0 });
+  hand.classList.remove('locked'); renderHand();
+  const c = $(`#hand [data-opt="${n - 1}"]`); sfx('flip');
+  gsap.fromTo(c, { rotationY: 90 }, { rotationY: 0, duration: D(.35), ease: 'back.out(1.6)' });
+  sparkles(rectOf(c).x + W / 2, L.hand.y + L.hand.h / 2, 8, 120);
+  pose('flippy', 'point', 2400); say(NOMATCH.ok, true); await wait(1400, true); guard(g);
+}
 /* "Draw When Stuck": after three misses the draw pile glows; the learner taps it and draws one penalty card */
 async function drawStuck() {
   const g = GID, pile = $('#pile'), hand = $('#hand');
@@ -1085,12 +1153,12 @@ function resetMotion() {
   gsap.globalTimeline.resume(); paused = false;
   $('#fxLayer').innerHTML = ''; $('#preview')?.remove(); $('#flipPreview')?.remove(); hideGo(); $('#btnFinal').hidden = true; gsap.set('#btnFinal', { clearProps: 'all' });
   gsap.set('#stamp', { autoAlpha: 0 }); gsap.set(['#world', '#centre', '#hand', '#bubble', '#roboFan', '#turnPtr', '#equation', '#ost'], { clearProps: 'all' });
-  $('#hand').classList.remove('locked', 'callfirst'); $('#pile').classList.remove('live'); $('#equation').innerHTML = '';
+  $('#hand').classList.remove('locked', 'callfirst'); $('#pile').classList.remove('live'); $('#equation').innerHTML = ''; $('#cpuRow').innerHTML = '';
   try { speechSynthesis.cancel(); } catch (e) { }
 }
 const SCREENS = ['#scrTitle', '#scrTeach', '#scrExplain', '#scrPause', '#scrWin', '#scrStar', '#qa'];
 /* table state for jumping straight into a part (tester jumps, Play again) */
-function jumpState(p) { fresh(); S.part = p; [S.hand, S.comp] = PARTS[p].deal; for (let k = 0; k < p; k++) S.done[k] = MATCHES[k]; }
+function jumpState(p) { fresh(); S.part = p; [S.hand, S.comp] = DEALS[p]; for (let k = 0; k < p; k++) S.done[k] = MATCHES[k]; }
 async function boot(p, run) {
   resetMotion(); SCREENS.forEach(s => $(s).hidden = true);
   jumpState(p); renderAll(); breathe(); pose('flippy', 'idle'); pose('robo', 'idle'); ost('');

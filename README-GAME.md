@@ -12,16 +12,23 @@ Open `index.html` in Chrome, or run a local server from this folder (`npx serve 
 | `js/game.js` | Game flow (a step runner that plays the sheet row by row), rendering, sound and every GSAP animation |
 | `vendor/gsap.min.js` | GSAP 3.12.5 |
 
-## How it plays (V2 sheet)
+## How it plays (V2 sheet + Sheet5 turn flow)
+
+Turns alternate: **you solve, the computer solves, you solve**. Every turn gets its own centre card from the draw pile.
+On the computer's turn its three cards turn face up beside it ("COMPUTER'S CARDS"); it checks them one by one, puts back the
+ones that don't match, plays the match, and the equation panel shows its working. Skip, Reverse and the Mystery bonus turn are
+the only times one player goes twice.
 
 1. **Hook** (row 1): cards fly in, shuffle into a deck, the title glows.
-2. **Setup** (row 2): 8 cards dealt to each player (computer's face down), tap PLAY.
-3. **How to Play 1-4** (rows 3-6): match the glowing card, follow the turn arrow (NEXT), preview Skip / Reverse / Draw / Swap, tap FLIP. Then "Ready to play?".
-4. **Part 2: Commutative** (2 players): teaching rule, guided tutorial, 7 practice matches, computer turns, learner Skip and Reverse, computer Reverse and Skip, then the FLIP card.
-5. **Part 3: Associative** (2 players): teaching rule, the 2 · 3 · 5 bracket explanation (GOT IT), guided tutorial, 7 practice matches, computer turns, learner Reverse, Mystery (DROP 1), then the FLIP card.
-6. **Part 4: Distributive** (2 players): teaching rule, the 3 × (4 + 2) block explanation (3 rows of 6 blocks split into 4 and 2; GOT IT), guided tutorial, 7 practice matches, learner Skip (twice) and Reverse, computer Mystery (DROP 1), Swap Hands (4 cards ↔ 2 cards), then the FLIP card.
-7. **Part 5: Identity**: teaching rule, the 8 + 0 / 8 × 1 / 8 × 0 explanation (GOT IT), guided tutorial with two correct cards (+0 or ×1), 7 fill-the-blank matches, learner Skip (twice), Reverse and Mystery (EXTRA CHANCE, bonus turn), then **Identity Complete** with all eight examples and the four property badges.
-8. **Part 6: FINAL FLIP**: the computer is down to two cards, the learner calls FINAL FLIP (the last card stays locked until they do), plays the last card, then **Victory**: the four property cards form a trophy.
+2. **Setup** (Sheet5 row 2): "Two players, one challenge." 8 cards dealt to each player (computer's face down), tap PLAY.
+3. **How to Play** (Sheet5 order): preview the special cards (Skip / Reverse / Draw / Swap / FLIP), match the glowing sample card, then "Ready to play?".
+4. **Part 2: Commutative** (Sheet5): guided tutorial, then you and the computer take turns (4 matches each), your Skip, the computer's Reverse and Skip, one "no match" turn where you draw a card (12 + 7), then the FLIP card.
+5. **Part 3: Associative**: teaching rule, the 2 · 3 · 5 bracket explanation (GOT IT), guided tutorial, 7 practice matches with computer turns between them, your Reverse and Mystery (DROP 1), the computer's Reverse and Skip, then the FLIP card.
+6. **Part 4: Distributive**: teaching rule, the 3 × (4 + 2) block explanation (GOT IT), guided tutorial, 7 practice matches with computer turns between them, your Skip and Reverse, the computer's Mystery (DROP 1) and Skip, Swap Hands (4 cards ↔ 2 cards), then the FLIP card.
+7. **Part 5: Identity**: teaching rule, the 8 + 0 / 8 × 1 / 8 × 0 explanation (GOT IT), guided tutorial with two correct cards (+0 or ×1), 7 fill-the-blank matches with computer turns between them, your Skip (twice), Reverse and Mystery (EXTRA CHANCE, bonus turn), then **Identity Complete** with all eight examples and the four property badges.
+8. **Part 6: FINAL FLIP**: the computer plays down to two cards, you call FINAL FLIP (the last card stays locked until you do), play the last card, then **Victory**: the four property cards form a trophy.
+
+Computer turns marked `// added` in `js/content.js` are not in the sheets; they keep the turn order in Parts 3 to 6.
 
 Feedback on every match follows the sheet:
 - Miss 1: "Check the numbers again." The card shakes and returns.
