@@ -13,18 +13,18 @@
 <div id="viewport">
   <div id="stage" aria-live="polite">
     <div id="world">
-      <img id="bg" class="bg" src="assets/bg/bg-game-table.webp" alt="">
-      <div id="tint"></div>
+      <!-- a plain card table that fills the stage (no scenery behind it) -->
+      <div id="table"></div>
 
-      <!-- top bar -->
+      <!-- top bar: progress, the Hint (?) button and pause (sound lives in the pause menu) -->
       <div id="progress" aria-label="Progress" class="pill"></div>
-      <button id="btnSound" class="iconbtn" aria-label="Sound on or off"><img src="assets/ui/ui-icon-sound-on.webp" alt=""></button>
+      <button id="btnHint" class="iconbtn" aria-label="Hint: show the rules">?</button>
       <button id="btnPause" class="iconbtn" aria-label="Pause"><img src="assets/ui/ui-icon-pause.webp" alt=""></button>
 
 
-      <!-- characters + speech: Flippy voices every line, Robo is the computer player -->
+      <!-- characters + the dialogue box at the top (Sheet6): Flippy voices every line, the turn tag and on-screen text sit on its edges -->
       <div id="flippyWrap" class="charwrap"><img id="flippy" src="assets/characters/ch-flippy-idle.webp" alt="Flippy"></div>
-      <div id="bubble" class="bubble"><img class="bubble-bg" src="assets/ui/ui-caption-bubble.webp" alt=""><span class="bubble-name">Flippy</span><p id="bubbleText"></p></div>
+      <div id="bubble" class="bubble"><span id="turnTag" hidden>YOUR TURN</span><p id="bubbleText"></p><div id="ost" aria-live="polite"></div></div>
       <div id="roboWrap" class="charwrap"><img id="robo" src="assets/characters/ch-robo-idle.webp" alt="Computer"></div>
       <div id="roboFan"></div>
       <!-- the computer's three cards while it solves its own equation -->
@@ -32,16 +32,14 @@
 
       <!-- table: draw pile, centre card, centre pile -->
       <button id="pile" aria-label="Draw pile">
-        <img src="assets/cards/cd-back.webp" alt=""><img src="assets/cards/cd-back.webp" alt=""><img src="assets/cards/cd-back.webp" alt="">
+        <img src="assets/cards/cd-back.webp" alt=""><img src="assets/cards/cd-back.webp" alt=""><img src="assets/cards/cd-back.webp" alt=""><span class="plbl">DRAW PILE</span>
       </button>
       <div id="centre"></div>
-      <div id="ost" aria-live="polite"></div>
       <div id="equation"></div>
 
-      <!-- card counts and the turn pointer -->
-      <div id="cntYou" class="cnt"><span>YOU</span><b>8</b></div>
-      <div id="cntCpu" class="cnt"><span>COMPUTER</span><b>8</b></div>
-      <img id="turnPtr" src="assets/feedback/active-player-arrow.webp" alt="">
+      <!-- card counts for both players, all game long -->
+      <div id="cntYou" class="cnt"><span>YOU</span><b>7</b></div>
+      <div id="cntCpu" class="cnt"><span>COMPUTER</span><b>7</b></div>
 
       <!-- learner hand -->
       <div id="hand"></div>
@@ -58,8 +56,6 @@
 
     <!-- row 1: game hook -->
     <section id="scrTitle" class="screen">
-      <img class="bg" src="assets/bg/bg-magic-terrace.webp" alt="">
-      <img class="rays" src="assets/fx/fx-win-rays.webp" alt="">
       <div class="title-plaque"><img src="assets/ui/ui-title-plaque.webp" alt=""><h1><span class="w1">NUMBER</span> <span class="w2"><i>F</i><i>L</i><i>I</i><i>P</i><i>!</i></span></h1></div>
       <p class="subtitle"></p>
       <div id="hookCards"></div>
@@ -73,10 +69,10 @@
       <div class="panel reveal">
         <img class="panel-bg" src="assets/ui/ui-property-reveal-panel.webp" alt="">
         <img class="medal" src="" alt="">
-        <p class="tag">Game rule</p>
         <h2></h2>
         <p class="how"></p>
         <div class="rule"></div>
+        <button class="imgbtn go" hidden><img src="assets/ui/ui-primary-button.webp" alt=""><span>LET'S PLAY</span></button>
       </div>
     </section>
 
@@ -85,7 +81,6 @@
       <div class="panel reveal explain">
         <img class="panel-bg" src="assets/ui/ui-property-reveal-panel.webp" alt="">
         <img class="medal" src="" alt="">
-        <p class="tag">Property</p>
         <h2 class="pname"></h2>
         <div class="xrow big"><div class="xa"></div><div class="xval"></div></div>
         <div class="xrow small"><div class="xa"></div><div class="xval"></div></div>
@@ -103,6 +98,7 @@
         <button class="imgbtn" id="btnResume"><img src="assets/ui/ui-primary-button.webp" alt=""><span>RESUME</span></button>
         <button class="imgbtn" id="btnRestart"><img src="assets/ui/ui-secondary-button.webp" alt=""><span>RESTART</span></button>
         <div class="toggles small">
+          <label class="toggle"><input type="checkbox" id="optSound" checked><span class="knob"></span>Sound</label>
           <label class="toggle"><input type="checkbox" id="optVoice2"><span class="knob"></span>Read lines aloud</label>
         </div>
         <div class="jump"></div>
@@ -111,7 +107,6 @@
 
     <!-- Part 5 row 72: property completion -->
     <section id="scrWin" class="screen" hidden>
-      <img class="bg" src="assets/bg/bg-victory.webp" alt="">
       <img class="rays" src="assets/fx/fx-win-rays.webp" alt="">
       <h2></h2>
       <div class="ring"></div>
@@ -119,11 +114,11 @@
       <div class="medals"></div>
     </section>
 
-    <!-- Part 6 row 57: victory -->
+    <!-- Part 6 row 57 + Sheet6 "Game Completion": the learner wins -->
     <section id="scrStar" class="screen" hidden>
-      <img class="bg" src="assets/bg/bg-victory.webp" alt="">
       <img class="rays" src="assets/fx/fx-win-rays.webp" alt="">
-      <h2>FINAL FLIP STAR!</h2>
+      <h2>YOU WIN!</h2>
+      <p class="sub">FINAL FLIP STAR!</p>
       <div class="tcards"></div>
       <img class="trophy" src="assets/ui/ui-trophy.webp" alt="Trophy">
       <div class="names"></div>
@@ -131,6 +126,45 @@
       <button class="imgbtn" id="btnAgain"><img src="assets/ui/ui-primary-button.webp" alt=""><span>PLAY AGAIN</span></button>
       <button class="imgbtn" id="btnHome"><img src="assets/ui/ui-secondary-button.webp" alt=""><span>HOME</span></button>
     </section>
+
+    <!-- Sheet6 "Game Completion": the computer clears its hand first -->
+    <section id="scrLose" class="screen" hidden>
+      <h2>COMPUTER WINS!</h2>
+      <p class="sub">TRY AGAIN!</p>
+      <img class="lrobo" src="assets/characters/ch-robo-laughing.webp" alt="The computer">
+      <button class="imgbtn" id="btnRetry"><img src="assets/ui/ui-primary-button.webp" alt=""><span>TRY AGAIN</span></button>
+    </section>
+
+    <!-- Sheet6 "Hint Icon": this part's rule and the game rules; closing it returns to the same turn -->
+    <section id="scrHint" class="screen dim" hidden role="dialog" aria-label="Hint">
+      <div class="panel hint">
+        <img class="panel-bg" src="assets/ui/ui-property-reveal-panel.webp" alt="">
+        <button class="hclose" aria-label="Close the hint">✕</button>
+        <div class="hcol hprop">
+          <h3 class="hpn"></h3>
+          <div class="hrule"></div>
+          <p class="hfind"></p>
+          <div class="hex"></div>
+        </div>
+        <div class="hcol hgame">
+          <h3>GAME RULES</h3>
+          <ul class="hlist"></ul>
+          <div class="hspec"></div>
+        </div>
+        <button class="imgbtn hback"><img src="assets/ui/ui-primary-button.webp" alt=""><span>BACK TO GAME</span></button>
+      </div>
+    </section>
+
+    <!-- Sheet6 "Inactivity Animation": the hand points at what to tap -->
+    <div id="nudge" aria-hidden="true"><svg viewBox="0 0 100 124" width="100" height="124">
+      <g fill="#1D2440" stroke="#1D2440" stroke-width="9" stroke-linejoin="round">
+        <rect x="23" y="4" width="18" height="60" rx="9"/><rect x="40" y="40" width="16" height="30" rx="8"/><rect x="54" y="45" width="15" height="28" rx="7.5"/><rect x="67" y="51" width="14" height="26" rx="7"/>
+        <rect x="21" y="52" width="62" height="50" rx="18"/><rect x="5" y="62" width="30" height="16" rx="8" transform="rotate(-28 20 70)"/><rect x="30" y="98" width="46" height="20" rx="5"/></g>
+      <g fill="#fff"><rect x="23" y="4" width="18" height="60" rx="9"/><rect x="40" y="40" width="16" height="30" rx="8"/><rect x="54" y="45" width="15" height="28" rx="7.5"/><rect x="67" y="51" width="14" height="26" rx="7"/>
+        <rect x="21" y="52" width="62" height="50" rx="18"/><rect x="5" y="62" width="30" height="16" rx="8" transform="rotate(-28 20 70)"/></g>
+      <rect x="30" y="98" width="46" height="20" rx="5" fill="#FFC83D"/>
+      <path d="M44 42v14M57 48v12M70 54v10" stroke="#C9CFE6" stroke-width="3" stroke-linecap="round"/>
+    </svg></div>
 
     <div id="qa" hidden><b>Jump to</b><div class="jump"></div></div>
   </div>
